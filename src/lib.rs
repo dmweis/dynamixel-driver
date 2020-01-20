@@ -233,6 +233,16 @@ impl DynamixelDriver {
         let max_torque_percentage = max_torque / 2013.0;
         Ok(max_torque_percentage)
     }
+
+    pub fn search_all(&mut self) -> Result<Vec<u8>, Box<dyn Error>> {
+        let mut ids = vec![];
+        for i in 1..255 {
+            if self.ping(i).is_ok() {
+                ids.push(i);
+            }
+        }
+        Ok(ids)
+    }
 }
 
 #[cfg(test)]
