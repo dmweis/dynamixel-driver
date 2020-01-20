@@ -108,7 +108,7 @@ struct StatusError {
 
 impl StatusError {
     fn check_error(flag: u8) -> Result<(), Box<StatusError>> {
-        if flag & (1<<7) != 0 {
+        if flag == 0 {
             return Ok(())
         }
         let status_error = StatusError {
@@ -161,7 +161,6 @@ impl std::fmt::Display for StatusError {
 #[derive(Debug)]
 pub(crate) struct Status {
     id: u8,
-    // error: Result<StatusError>,
     params: Vec<u8>
 }
 
@@ -183,7 +182,6 @@ impl Status {
         }
         Ok(Status{
             id,
-            // error,
             params,
         })
     }
@@ -247,11 +245,6 @@ impl DynamixelPort {
         data.extend(repeat(0).take(len));
         self.port.read_exact(&mut data[4..4+len])?;
         let status = Status::load(&data)?;
-
-        // if status.error.unwrap().
-        // if let Some(errors) = status.error {
-        //     errors?;
-        // }
         Ok(status)
     }
 }
@@ -261,9 +254,21 @@ mod tests {
     use super::*;
 
     #[test]
-    #[should_panic(expected = "overload_error: true, overheating_error: true")]
-    // #[should_panic(expected = "overload_error: true")]
-    fn simple_status_loading() {
+    #[should_panic(expected = "overload_error: true")]
+    fn overload_status_loading() {
+        let _error = Status::load(&[
+            0xFF, // header
+            0xFF,
+            0x01, // id
+            0x02, // instruction
+            0x24,
+            0xD8
+        ]).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "overheating_error: true")]
+    fn overheat_status_loading() {
         let _error = Status::load(&[
             0xFF, // header
             0xFF,

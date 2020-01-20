@@ -50,6 +50,61 @@ impl Instruction for Ping {
     }
 }
 
+pub struct SyncCommand {
+    id: u8,
+    value: u32,
+}
+
+impl SyncCommand {
+    pub fn new(id: u8, value: u32) -> SyncCommand {
+        SyncCommand { id, value }
+    }
+}
+
+struct SyncWrite {
+    addr: u8,
+    data_len: u8,
+    data: Vec<SyncCommand>,
+}
+
+impl SyncWrite {
+    fn new(addr: u8, data_len: u8, data: Vec<SyncCommand>) -> SyncWrite {
+        SyncWrite { addr, data_len, data }
+    }
+}
+
+impl Instruction for SyncWrite {
+    fn serialize(&self) -> Vec<u8> {
+        let len = (self.data_len + 1) * self.data.len() as u8 + 4;
+        let mut data = vec![
+            0xFF, // header
+            0xFF,
+            0xFE, // Always broadcast ID
+            len, // Len
+            0x83, // Instruction
+            self.addr,
+            self.data_len,
+        ];
+        // add params
+        for entry in &self.data {
+            data.push(entry.id);
+            match self.data_len {
+                1 => {
+                    data.push(entry.value as u8);
+                },
+                2 => {
+                    data.push(entry.value as u8);
+                    data.push((entry.value >> 8) as u8);
+                },
+                _ => unimplemented!("Sync write only implement for u8 and u16")
+            }
+        }
+        let checksum = calc_checksum(&data[2..]);
+        data.push(checksum);
+        data
+    }
+}
+
 pub struct DynamixelDriver {
     port: DynamixelPort
 }
@@ -64,8 +119,7 @@ impl DynamixelDriver {
     pub fn ping(&mut self, id: u8) -> Result<(), Box<dyn Error>> {
         let ping = Ping::new(id);
         self.port.write_message(ping)?;
-        // let status = self.port.read_message()?;
-        // println!("{:?}", status);
+        let _status = self.port.read_message()?;
         Ok(())
     }
 
@@ -84,6 +138,12 @@ impl DynamixelDriver {
         Ok(self.port.write_u16(id, GOAL_POSITION, goal_position)?)
     }
 
+    pub fn sync_write_position(&mut self, positions: Vec<SyncCommand>) -> Result<(), Box<dyn Error>> {
+        let ping = SyncWrite::new(GOAL_POSITION, 2, positions);
+        self.port.write_message(ping)?;
+        Ok(())
+    }
+
     pub fn read_max_torque(&mut self, id: u8) -> Result<f32, Box<dyn Error>> {
         let position = self.port.read_u16(id, MAX_TORQUE)? as f32;
         let position = position / 3.41;
@@ -100,5 +160,16 @@ mod tests {
         let packet = Ping::new(1);
         let payload = packet.serialize();
         assert_eq!(payload, vec![0xFF_u8,0xFF,0x01,0x02,0x01,0xFB])
+    }
+
+    #[test]
+    fn sync_write_serialization() {
+        let params = vec![
+            SyncCommand::new(1, 10),
+            SyncCommand::new(2, 10),
+        ];
+        let packet = SyncWrite::new(30, 2, params);
+        let payload = packet.serialize();
+        assert_eq!(payload, vec![255, 255, 254, 10, 131, 30, 2, 1, 10, 0, 2, 10, 0, 61])
     }
 }
