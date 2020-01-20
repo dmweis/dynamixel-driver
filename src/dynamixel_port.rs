@@ -195,7 +195,7 @@ impl DynamixelPort {
     pub(crate) fn new(port_name: &str) -> Result<DynamixelPort, Box<dyn Error>> {
         let mut port = serialport::open(&port_name)?;
         port.set_baud_rate(1000000)?;
-        port.set_timeout(Duration::from_millis(100))?;
+        port.set_timeout(Duration::from_millis(10))?;
         Ok(DynamixelPort {
             port
         })
@@ -218,6 +218,13 @@ impl DynamixelPort {
         res |= b << 8;
         res |= a;
         Ok(res)
+    }
+
+    pub(crate) fn write_u8(&mut self, id: u8, addr: u8, value: u8) -> Result<(), Box<dyn Error>> {
+        let msg = WriteInstruction::with_u8(id, addr, value);
+        self.write_message(msg)?;
+        let _response = self.read_message()?;
+        Ok(())
     }
 
     pub(crate) fn write_u16(&mut self, id: u8, addr: u8, value: u16) -> Result<(), Box<dyn Error>> {

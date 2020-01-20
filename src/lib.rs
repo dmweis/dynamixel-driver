@@ -9,19 +9,20 @@ use std::error::Error;
 const MODEL_NUMBER: u8 = 0;
 #[allow(dead_code)]
 const FIRMWARE_VERSION: u8 = 2;
-#[allow(dead_code)]
 const ID: u8 = 3;
 #[allow(dead_code)]
 const BAUD_RATE: u8 = 4;
 const MAX_TORQUE: u8 = 14;
 
 // RAM table
-#[allow(dead_code)]
+const TORQUE_ENABLED: u8 = 24;
+const CW_COMPLIANCE_SLOPE: u8 = 28;
+const CWW_COMPLIANCE_SLOPE: u8 = 29;
 const GOAL_POSITION: u8 = 30;
-#[allow(dead_code)]
+const MOVING_SPEED: u8 = 32;
 const PRESENT_POSITION: u8 = 36;
-#[allow(dead_code)]
 const PRESENT_TEMPERATURE: u8 = 43;
+const PRESENT_VOLTAGE: u8 = 42;
 
 struct Ping {
     id: u8
@@ -123,31 +124,71 @@ impl DynamixelDriver {
         Ok(())
     }
 
+    pub fn write_id(&mut self, id: u8, new_id: u8) -> Result<(), Box<dyn Error>> {
+        self.port.write_u8(id, ID, new_id)?;
+        Ok(())
+    }
+
+    pub fn write_torque(&mut self, id: u8, torque_enabled: bool) -> Result<(), Box<dyn Error>> {
+        if torque_enabled {
+            Ok(self.port.write_u8(id, TORQUE_ENABLED, 1)?)
+        } else {
+            Ok(self.port.write_u8(id, TORQUE_ENABLED, 0)?)
+        }
+    }
+
     pub fn read_temperature(&mut self, id: u8) -> Result<u8, Box<dyn Error>> {
         Ok(self.port.read_u8(id, PRESENT_TEMPERATURE)?)
     }
 
-    pub fn read_position(&mut self, id: u8) -> Result<f32, Box<dyn Error>> {
+    pub fn read_voltage(&mut self, id: u8) -> Result<u8, Box<dyn Error>> {
+        Ok(self.port.read_u8(id, PRESENT_VOLTAGE)?)
+    }
+
+    pub fn read_position_degrees(&mut self, id: u8) -> Result<f32, Box<dyn Error>> {
         let position = self.port.read_u16(id, PRESENT_POSITION)? as f32;
         let position = position / 3.41;
         Ok(position)
     }
 
-    pub fn write_position(&mut self, id: u8, pos: f32) -> Result<(), Box<dyn Error>> {
+    pub fn read_position(&mut self, id: u8) -> Result<u16, Box<dyn Error>> {
+        let position = self.port.read_u16(id, PRESENT_POSITION)?;
+        Ok(position)
+    }
+
+    pub fn write_compliance_slope_both(&mut self, id: u8, compliance: u8) -> Result<(), Box<dyn Error>> {
+        self.port.write_u8(id, CW_COMPLIANCE_SLOPE, compliance)?;
+        self.port.write_u8(id, CWW_COMPLIANCE_SLOPE, compliance)?;
+        Ok(())
+    }
+
+    pub fn write_position(&mut self, id: u8, pos: u16) -> Result<(), Box<dyn Error>> {
+        self.port.write_u16(id, GOAL_POSITION, pos)?;
+        Ok(())
+    }
+
+    pub fn write_position_degrees(&mut self, id: u8, pos: f32) -> Result<(), Box<dyn Error>> {
         let goal_position = ((pos*3.41) as i32) as u16;
-        Ok(self.port.write_u16(id, GOAL_POSITION, goal_position)?)
+        self.port.write_u16(id, GOAL_POSITION, goal_position)?;
+        Ok(())
     }
 
     pub fn sync_write_position(&mut self, positions: Vec<SyncCommand>) -> Result<(), Box<dyn Error>> {
-        let ping = SyncWrite::new(GOAL_POSITION, 2, positions);
-        self.port.write_message(ping)?;
+        let message = SyncWrite::new(GOAL_POSITION, 2, positions);
+        self.port.write_message(message)?;
+        Ok(())
+    }
+
+    pub fn sync_write_moving_speed(&mut self, speeds: Vec<SyncCommand>) -> Result<(), Box<dyn Error>> {
+        let message = SyncWrite::new(MOVING_SPEED, 2, speeds);
+        self.port.write_message(message)?;
         Ok(())
     }
 
     pub fn read_max_torque(&mut self, id: u8) -> Result<f32, Box<dyn Error>> {
-        let position = self.port.read_u16(id, MAX_TORQUE)? as f32;
-        let position = position / 3.41;
-        Ok(position)
+        let max_torque = self.port.read_u16(id, MAX_TORQUE)? as f32;
+        let max_torque_percentage = max_torque / 2013.0;
+        Ok(max_torque_percentage)
     }
 }
 
