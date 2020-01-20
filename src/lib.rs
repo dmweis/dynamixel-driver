@@ -62,6 +62,17 @@ impl SyncCommand {
     }
 }
 
+pub struct SyncCommandFloat {
+    id: u8,
+    value: f32,
+}
+
+impl SyncCommandFloat {
+    pub fn new(id: u8, value: f32) -> SyncCommandFloat {
+        SyncCommandFloat { id, value }
+    }
+}
+
 struct SyncWrite {
     addr: u8,
     data_len: u8,
@@ -145,15 +156,20 @@ impl DynamixelDriver {
         Ok(self.port.read_u8(id, PRESENT_VOLTAGE)?)
     }
 
+    pub fn read_position(&mut self, id: u8) -> Result<u16, Box<dyn Error>> {
+        let position = self.port.read_u16(id, PRESENT_POSITION)?;
+        Ok(position)
+    }
+
     pub fn read_position_degrees(&mut self, id: u8) -> Result<f32, Box<dyn Error>> {
         let position = self.port.read_u16(id, PRESENT_POSITION)? as f32;
         let position = position / 3.41;
         Ok(position)
     }
 
-    pub fn read_position(&mut self, id: u8) -> Result<u16, Box<dyn Error>> {
-        let position = self.port.read_u16(id, PRESENT_POSITION)?;
-        Ok(position)
+    pub fn read_position_rad(&mut self, id: u8) -> Result<f32, Box<dyn Error>> {
+        let pos_rad = self.read_position_degrees(id)?.to_radians();
+        Ok(pos_rad)
     }
 
     pub fn write_compliance_slope_both(&mut self, id: u8, compliance: u8) -> Result<(), Box<dyn Error>> {
@@ -173,9 +189,36 @@ impl DynamixelDriver {
         Ok(())
     }
 
+    pub fn write_position_rad(&mut self, id: u8, pos: f32) -> Result<(), Box<dyn Error>> {
+        self.write_position_degrees(id, pos.to_degrees())?;
+        Ok(())
+    }
+
     pub fn sync_write_position(&mut self, positions: Vec<SyncCommand>) -> Result<(), Box<dyn Error>> {
         let message = SyncWrite::new(GOAL_POSITION, 2, positions);
         self.port.write_message(message)?;
+        Ok(())
+    }
+
+    pub fn sync_write_position_degrees(&mut self, positions: Vec<SyncCommandFloat>) -> Result<(), Box<dyn Error>> {
+        let positions_dyn_units: Vec<SyncCommand> = positions
+                .into_iter()
+                .map(|command| {
+                    let goal_position = ((command.value*3.41) as i32) as u32;
+                    SyncCommand::new(command.id, goal_position)
+                }).collect();
+        let message = SyncWrite::new(GOAL_POSITION, 2, positions_dyn_units);
+        self.port.write_message(message)?;
+        Ok(())
+    }
+
+    pub fn sync_write_position_rad(&mut self, positions: Vec<SyncCommandFloat>) -> Result<(), Box<dyn Error>> {
+        let positions_degrees: Vec<SyncCommandFloat> = positions
+                .into_iter()
+                .map(|command| {
+                    SyncCommandFloat::new(command.id, command.value.to_degrees())
+                }).collect();
+        self.sync_write_position_degrees(positions_degrees)?;
         Ok(())
     }
 
