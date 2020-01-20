@@ -236,7 +236,7 @@ impl DynamixelDriver {
 
     pub fn search_all(&mut self) -> Result<Vec<u8>, Box<dyn Error>> {
         let mut ids = vec![];
-        for i in 1..255 {
+        for i in 1..254 {
             if self.ping(i).is_ok() {
                 ids.push(i);
             }
