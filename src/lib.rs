@@ -152,8 +152,8 @@ impl DynamixelDriver {
         Ok(self.port.read_u8(id, PRESENT_TEMPERATURE)?)
     }
 
-    pub fn read_voltage(&mut self, id: u8) -> Result<u8, Box<dyn Error>> {
-        Ok(self.port.read_u8(id, PRESENT_VOLTAGE)?)
+    pub fn read_voltage(&mut self, id: u8) -> Result<f32, Box<dyn Error>> {
+        Ok(self.port.read_u8(id, PRESENT_VOLTAGE)? as f32 / 10.0)
     }
 
     pub fn read_position(&mut self, id: u8) -> Result<u16, Box<dyn Error>> {
