@@ -24,6 +24,7 @@ const PRESENT_POSITION: u8 = 36;
 const PRESENT_TEMPERATURE: u8 = 43;
 const PRESENT_VOLTAGE: u8 = 42;
 
+#[derive(Debug, PartialEq, Clone, Copy)]
 struct Ping {
     id: u8
 }
@@ -51,7 +52,7 @@ impl Instruction for Ping {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct SyncCommand {
     id: u8,
     value: u32,
@@ -63,7 +64,7 @@ impl SyncCommand {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct SyncCommandFloat {
     id: u8,
     value: f32,
@@ -75,7 +76,7 @@ impl SyncCommandFloat {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 struct SyncWrite {
     addr: u8,
     data_len: u8,
