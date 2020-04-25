@@ -51,6 +51,7 @@ impl Instruction for Ping {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct SyncCommand {
     id: u8,
     value: u32,
@@ -62,6 +63,7 @@ impl SyncCommand {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct SyncCommandFloat {
     id: u8,
     value: f32,
@@ -73,6 +75,7 @@ impl SyncCommandFloat {
     }
 }
 
+#[derive(Clone, Debug)]
 struct SyncWrite {
     addr: u8,
     data_len: u8,
@@ -178,6 +181,14 @@ impl DynamixelDriver {
         Ok(())
     }
 
+    pub fn sync_write_compliance_both(&mut self, compliance: Vec<SyncCommand>) -> Result<(), Box<dyn Error>> {
+        let message_cw = SyncWrite::new(CW_COMPLIANCE_SLOPE, 1, compliance.clone());
+        let message_cww = SyncWrite::new(CWW_COMPLIANCE_SLOPE, 1, compliance);
+        self.port.write_message(message_cw)?;
+        self.port.write_message(message_cww)?;
+        Ok(())
+    }
+
     pub fn write_position(&mut self, id: u8, pos: u16) -> Result<(), Box<dyn Error>> {
         self.port.write_u16(id, GOAL_POSITION, pos)?;
         Ok(())
@@ -257,7 +268,7 @@ mod tests {
     }
 
     #[test]
-    fn sync_write_serialization() {
+    fn sync_write_serialization_u16() {
         let params = vec![
             SyncCommand::new(1, 10),
             SyncCommand::new(2, 10),
@@ -265,5 +276,27 @@ mod tests {
         let packet = SyncWrite::new(30, 2, params);
         let payload = packet.serialize();
         assert_eq!(payload, vec![255, 255, 254, 10, 131, 30, 2, 1, 10, 0, 2, 10, 0, 61])
+    }
+
+    #[test]
+    fn sync_write_serialization_u8() {
+        let params = vec![
+            SyncCommand::new(1, 10),
+            SyncCommand::new(2, 10),
+        ];
+        let packet = SyncWrite::new(30, 1, params);
+        let payload = packet.serialize();
+        assert_eq!(payload, vec![255, 255, 254, 8, 131, 30, 1, 1, 10, 2, 10, 64])
+    }
+
+    #[test]
+    #[should_panic(expected = "not implemented: Sync write only implement for u8 and u16")]
+    fn sync_write_serialization_fail() {
+        let params = vec![
+            SyncCommand::new(1, 10),
+            SyncCommand::new(2, 10),
+        ];
+        let packet = SyncWrite::new(30, 3, params);
+        let _ = packet.serialize();
     }
 }
