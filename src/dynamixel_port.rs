@@ -6,6 +6,8 @@ use std::io::{Read, Write};
 use serialport;
 use serialport::SerialPort;
 
+use log::*;
+
 pub(crate) trait Instruction {
     fn serialize(&self) -> Vec<u8>;
 }
@@ -167,9 +169,11 @@ pub(crate) struct Status {
 impl Status {
     fn load(data: &[u8]) -> Result<Status, Box<dyn Error>> {
         if data.len() < 6 {
+            error!("Packet too small");
             Err("Packet too small")?
         }
         if data[0] != 0xFF && data[1] != 0xFF {
+            error!("Header parsing error");
             Err("Header parsing error")?;
         }
         let id = data[2];
@@ -178,6 +182,7 @@ impl Status {
         let params = Vec::from_iter(data[5..5+(len as usize)].iter().cloned());
         let checksum = calc_checksum(&data[2..5+(len as usize)]);
         if &checksum != data.last().unwrap() {
+            error!("Checksum error");
             Err("Checksum error")?
         }
         Ok(Status{
