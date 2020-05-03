@@ -190,6 +190,16 @@ impl DynamixelDriver {
         Ok(())
     }
 
+    pub fn sync_write_torque(&mut self, torque: Vec<(u8, bool)>) -> Result<(), Box<dyn Error>> {
+        let torque_commands: Vec<SyncCommand> = torque
+            .into_iter()
+            .map(|(id, val)| SyncCommand::new(id, val as u32))
+            .collect();
+        let torque_message = SyncWrite::new(TORQUE_ENABLED, 1, torque_commands);
+        self.port.write_message(torque_message)?;
+        Ok(())
+    }
+
     pub fn write_position(&mut self, id: u8, pos: u16) -> Result<(), Box<dyn Error>> {
         self.port.write_u16(id, GOAL_POSITION, pos)?;
         Ok(())
