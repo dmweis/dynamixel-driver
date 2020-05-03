@@ -167,6 +167,11 @@ pub(crate) struct Status {
 }
 
 impl Status {
+    #[cfg(test)]
+    pub(crate) fn new(id: u8, params: Vec<u8>) -> Status {
+        Status { id, params }
+    }
+
     fn load(data: &[u8]) -> Result<Status, Box<dyn Error>> {
         if data.len() < 6 {
             error!("Packet too small");
@@ -192,60 +197,23 @@ impl Status {
     }
 }
 
-pub(crate) struct DynamixelPort {
+pub(crate) trait DynamixelConnection {
+    fn write_message(&mut self, message: &dyn Instruction) -> Result<(), Box<dyn Error>>;
+    fn read_message(&mut self) -> Result<Status, Box<dyn Error>>;
+}
+
+struct DynamixelSerialPort {
     port: Box<dyn SerialPort>
 }
 
-impl DynamixelPort {
-    pub(crate) fn new(port_name: &str) -> Result<DynamixelPort, Box<dyn Error>> {
-        let mut port = serialport::open(&port_name)?;
-        port.set_baud_rate(1000000)?;
-        port.set_timeout(Duration::from_millis(10))?;
-        Ok(DynamixelPort {
-            port
-        })
-    }
-
-    pub(crate) fn read_u8(&mut self, id: u8, addr: u8) -> Result<u8, Box<dyn Error>> {
-        let command = ReadInstruction::new(id, addr, 1);
-        self.write_message(command)?;
-        let response = self.read_message()?;
-        Ok(response.params[0])
-    }
-
-    pub(crate) fn read_u16(&mut self, id: u8, addr: u8) -> Result<u16, Box<dyn Error>> {
-        let command = ReadInstruction::new(id, addr, 2);
-        self.write_message(command)?;
-        let response = self.read_message()?;
-        let mut res = 0_u16;
-        let a = response.params[0] as u16;
-        let b = response.params[1] as u16;
-        res |= b << 8;
-        res |= a;
-        Ok(res)
-    }
-
-    pub(crate) fn write_u8(&mut self, id: u8, addr: u8, value: u8) -> Result<(), Box<dyn Error>> {
-        let msg = WriteInstruction::with_u8(id, addr, value);
-        self.write_message(msg)?;
-        let _response = self.read_message()?;
-        Ok(())
-    }
-
-    pub(crate) fn write_u16(&mut self, id: u8, addr: u8, value: u16) -> Result<(), Box<dyn Error>> {
-        let msg = WriteInstruction::with_u16(id, addr, value);
-        self.write_message(msg)?;
-        let _response = self.read_message()?;
-        Ok(())
-    }
-
-    pub(crate) fn write_message(&mut self, message: impl Instruction) -> Result<(), Box<dyn Error>> {
+impl DynamixelConnection for DynamixelSerialPort {
+    fn write_message(&mut self, message: &dyn Instruction) -> Result<(), Box<dyn Error>> {
         let payload = message.serialize();
         self.port.write(&payload)?;
         Ok(())
     }
 
-    pub(crate) fn read_message(&mut self) -> Result<Status, Box<dyn Error>> {
+    fn read_message(&mut self) -> Result<Status, Box<dyn Error>> {
         let mut buffer = [0; 4];
         self.port.read_exact(&mut buffer)?;
         if buffer[0] != 0xFF && buffer[1] != 0xFF {
@@ -258,6 +226,71 @@ impl DynamixelPort {
         self.port.read_exact(&mut data[4..4+len])?;
         let status = Status::load(&data)?;
         Ok(status)
+    }
+}
+
+pub(crate) struct DynamixelPort {
+    connection: Box<dyn DynamixelConnection>
+}
+
+impl DynamixelPort {
+    pub(crate) fn with_serial_port(port_name: &str) -> Result<DynamixelPort, Box<dyn Error>> {
+        let mut port = serialport::open(&port_name)?;
+        port.set_baud_rate(1000000)?;
+        port.set_timeout(Duration::from_millis(10))?;
+        Ok(DynamixelPort {
+            connection: Box::new(DynamixelSerialPort {
+                port: port
+            })
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new(connection: Box<impl DynamixelConnection + 'static>) -> DynamixelPort {
+        DynamixelPort {
+            connection: connection
+        }
+    }
+
+    pub(crate) fn read_u8(&mut self, id: u8, addr: u8) -> Result<u8, Box<dyn Error>> {
+        let command = ReadInstruction::new(id, addr, 1);
+        self.connection.write_message(&command)?;
+        let response = self.connection.read_message()?;
+        Ok(response.params[0])
+    }
+
+    pub(crate) fn read_u16(&mut self, id: u8, addr: u8) -> Result<u16, Box<dyn Error>> {
+        let command = ReadInstruction::new(id, addr, 2);
+        self.connection.write_message(&command)?;
+        let response = self.connection.read_message()?;
+        let mut res = 0_u16;
+        let a = response.params[0] as u16;
+        let b = response.params[1] as u16;
+        res |= b << 8;
+        res |= a;
+        Ok(res)
+    }
+
+    pub(crate) fn write_u8(&mut self, id: u8, addr: u8, value: u8) -> Result<(), Box<dyn Error>> {
+        let msg = WriteInstruction::with_u8(id, addr, value);
+        self.connection.write_message(&msg)?;
+        let _response = self.connection.read_message()?;
+        Ok(())
+    }
+
+    pub(crate) fn write_u16(&mut self, id: u8, addr: u8, value: u16) -> Result<(), Box<dyn Error>> {
+        let msg = WriteInstruction::with_u16(id, addr, value);
+        self.connection.write_message(&msg)?;
+        let _response = self.connection.read_message()?;
+        Ok(())
+    }
+
+    pub(crate) fn write_message(&mut self, message: &dyn Instruction) -> Result<(), Box<dyn Error>> {
+        Ok(self.connection.write_message(message)?)
+    }
+
+    pub(crate) fn read_message(&mut self) -> Result<Status, Box<dyn Error>> {
+        self.connection.read_message()
     }
 }
 

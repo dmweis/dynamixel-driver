@@ -1,6 +1,8 @@
 mod dynamixel_port;
 
 use dynamixel_port::{DynamixelPort, Instruction, calc_checksum};
+#[cfg(test)]
+use dynamixel_port::DynamixelConnection;
 
 use std::error::Error;
 
@@ -64,6 +66,13 @@ impl SyncCommand {
     }
 }
 
+impl From<(u8, u32)> for SyncCommand {
+    fn from(input: (u8, u32)) -> Self {
+        let (id, val) = input;
+        SyncCommand::new(id, val)
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct SyncCommandFloat {
     id: u8,
@@ -73,6 +82,13 @@ pub struct SyncCommandFloat {
 impl SyncCommandFloat {
     pub fn new(id: u8, value: f32) -> SyncCommandFloat {
         SyncCommandFloat { id, value }
+    }
+}
+
+impl From<(u8, f32)> for SyncCommandFloat {
+    fn from(input: (u8, f32)) -> Self {
+        let (id, val) = input;
+        SyncCommandFloat::new(id, val)
     }
 }
 
@@ -128,13 +144,20 @@ pub struct DynamixelDriver {
 impl DynamixelDriver {
     pub fn new(port_name: &str) -> Result<DynamixelDriver, Box<dyn Error>> {
         Ok(DynamixelDriver {
-            port: DynamixelPort::new(port_name)?
+            port: DynamixelPort::with_serial_port(port_name)?
         })
+    }
+
+    #[cfg(test)]
+    fn new_with_connection(connection: Box<impl DynamixelConnection + 'static>) -> DynamixelDriver {
+        DynamixelDriver {
+            port: DynamixelPort::new(connection)
+        }
     }
 
     pub fn ping(&mut self, id: u8) -> Result<(), Box<dyn Error>> {
         let ping = Ping::new(id);
-        self.port.write_message(ping)?;
+        self.port.write_message(&ping)?;
         let _status = self.port.read_message()?;
         Ok(())
     }
@@ -182,11 +205,15 @@ impl DynamixelDriver {
         Ok(())
     }
 
-    pub fn sync_write_compliance_both(&mut self, compliance: Vec<SyncCommand>) -> Result<(), Box<dyn Error>> {
+    pub fn sync_write_compliance_both<T: Into<SyncCommand>>(&mut self, compliance: Vec<T>) -> Result<(), Box<dyn Error>> {
+        let compliance: Vec<SyncCommand> = compliance
+            .into_iter()
+            .map(|command| command.into())
+            .collect();
         let message_cw = SyncWrite::new(CW_COMPLIANCE_SLOPE, 1, compliance.clone());
         let message_cww = SyncWrite::new(CWW_COMPLIANCE_SLOPE, 1, compliance);
-        self.port.write_message(message_cw)?;
-        self.port.write_message(message_cww)?;
+        self.port.write_message(&message_cw)?;
+        self.port.write_message(&message_cww)?;
         Ok(())
     }
 
@@ -196,7 +223,7 @@ impl DynamixelDriver {
             .map(|(id, val)| SyncCommand::new(id, val as u32))
             .collect();
         let torque_message = SyncWrite::new(TORQUE_ENABLED, 1, torque_commands);
-        self.port.write_message(torque_message)?;
+        self.port.write_message(&torque_message)?;
         Ok(())
     }
 
@@ -218,7 +245,7 @@ impl DynamixelDriver {
 
     pub fn sync_write_position(&mut self, positions: Vec<SyncCommand>) -> Result<(), Box<dyn Error>> {
         let message = SyncWrite::new(GOAL_POSITION, 2, positions);
-        self.port.write_message(message)?;
+        self.port.write_message(&message)?;
         Ok(())
     }
 
@@ -230,7 +257,7 @@ impl DynamixelDriver {
                     SyncCommand::new(command.id, goal_position)
                 }).collect();
         let message = SyncWrite::new(GOAL_POSITION, 2, positions_dyn_units);
-        self.port.write_message(message)?;
+        self.port.write_message(&message)?;
         Ok(())
     }
 
@@ -246,7 +273,7 @@ impl DynamixelDriver {
 
     pub fn sync_write_moving_speed(&mut self, speeds: Vec<SyncCommand>) -> Result<(), Box<dyn Error>> {
         let message = SyncWrite::new(MOVING_SPEED, 2, speeds);
-        self.port.write_message(message)?;
+        self.port.write_message(&message)?;
         Ok(())
     }
 
@@ -270,6 +297,8 @@ impl DynamixelDriver {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dynamixel_port::*;
+    use std::sync::mpsc::{ channel, Sender };
 
     #[test]
     fn ping_serialization() {
@@ -309,5 +338,51 @@ mod tests {
         ];
         let packet = SyncWrite::new(30, 3, params);
         let _ = packet.serialize();
+    }
+
+    struct MockSerialPort {
+        written_data: Sender<Vec<u8>>,
+        mock_read_data: Vec<Status>
+    }
+
+    impl MockSerialPort {
+        fn new(mock_read_data: Vec<Status>, written_data: Sender<Vec<u8>>) -> MockSerialPort {
+            MockSerialPort {
+                written_data,
+                mock_read_data,
+            }
+        }
+    }
+
+    impl DynamixelConnection for MockSerialPort {
+        fn write_message(&mut self, message: &dyn Instruction) -> Result<(), Box<dyn Error>> {
+            let payload = message.serialize();
+            self.written_data.send(payload).unwrap();
+            Ok(())
+        }
+    
+        fn read_message(&mut self) -> Result<Status, Box<dyn Error>> {
+            Ok(self.mock_read_data.remove(0))
+        }
+    }
+
+    #[test]
+    fn sync_write_compliance_writes() {
+        let (tx, rx) = channel();
+        let mock_port = MockSerialPort::new(vec![
+            Status::new( 1, vec![] ),
+            Status::new( 2, vec![] ),
+            Status::new( 3, vec![] ),
+            Status::new( 4, vec![] ),
+        ], tx);
+        let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
+        let commands = vec![
+            (1_u8, 0_u32),
+            (2, 0),
+            (3, 0),
+            (4, 0),
+        ];
+        driver.sync_write_compliance_both(commands).unwrap();
+        assert_eq!(rx.recv().unwrap(), vec![255, 255, 254, 12, 131, 28, 1, 1, 0, 2, 0, 3, 0, 4, 0, 75]);
     }
 }
