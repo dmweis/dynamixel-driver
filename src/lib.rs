@@ -73,6 +73,13 @@ impl From<(u8, u32)> for SyncCommand {
     }
 }
 
+impl From<(u8, bool)> for SyncCommand {
+    fn from(input: (u8, bool)) -> Self {
+        let (id, val) = input;
+        SyncCommand::new(id, val as u32)
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct SyncCommandFloat {
     id: u8,
@@ -217,10 +224,10 @@ impl DynamixelDriver {
         Ok(())
     }
 
-    pub fn sync_write_torque(&mut self, torque: Vec<(u8, bool)>) -> Result<(), Box<dyn Error>> {
+    pub fn sync_write_torque<T: Into<SyncCommand>>(&mut self, torque: Vec<T>) -> Result<(), Box<dyn Error>> {
         let torque_commands: Vec<SyncCommand> = torque
             .into_iter()
-            .map(|(id, val)| SyncCommand::new(id, val as u32))
+            .map(|command| command.into())
             .collect();
         let torque_message = SyncWrite::new(TORQUE_ENABLED, 1, torque_commands);
         self.port.write_message(&torque_message)?;
@@ -243,7 +250,11 @@ impl DynamixelDriver {
         Ok(())
     }
 
-    pub fn sync_write_position(&mut self, positions: Vec<SyncCommand>) -> Result<(), Box<dyn Error>> {
+    pub fn sync_write_position<T: Into<SyncCommand>>(&mut self, positions: Vec<T>) -> Result<(), Box<dyn Error>> {
+        let positions: Vec<SyncCommand> = positions
+            .into_iter()
+            .map(|command| command.into())
+            .collect();
         let message = SyncWrite::new(GOAL_POSITION, 2, positions);
         self.port.write_message(&message)?;
         Ok(())
@@ -271,7 +282,11 @@ impl DynamixelDriver {
         Ok(())
     }
 
-    pub fn sync_write_moving_speed(&mut self, speeds: Vec<SyncCommand>) -> Result<(), Box<dyn Error>> {
+    pub fn sync_write_moving_speed<T: Into<SyncCommand>>(&mut self, speeds: Vec<T>) -> Result<(), Box<dyn Error>> {
+        let speeds: Vec<SyncCommand> = speeds
+            .into_iter()
+            .map(|command| command.into())
+            .collect();
         let message = SyncWrite::new(MOVING_SPEED, 2, speeds);
         self.port.write_message(&message)?;
         Ok(())
@@ -369,12 +384,7 @@ mod tests {
     #[test]
     fn sync_write_compliance_writes() {
         let (tx, rx) = channel();
-        let mock_port = MockSerialPort::new(vec![
-            Status::new( 1, vec![] ),
-            Status::new( 2, vec![] ),
-            Status::new( 3, vec![] ),
-            Status::new( 4, vec![] ),
-        ], tx);
+        let mock_port = MockSerialPort::new(vec![], tx);
         let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
         let commands = vec![
             (1_u8, 0_u32),
@@ -383,6 +393,36 @@ mod tests {
             (4, 0),
         ];
         driver.sync_write_compliance_both(commands).unwrap();
-        assert_eq!(rx.recv().unwrap(), vec![255, 255, 254, 12, 131, 28, 1, 1, 0, 2, 0, 3, 0, 4, 0, 75]);
+        assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 254, 12, 131, 28, 1, 1, 0, 2, 0, 3, 0, 4, 0, 75]);
+        assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 254, 12, 131, 29, 1, 1, 0, 2, 0, 3, 0, 4, 0, 74]);
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn sync_write_positions_writes() {
+        let (tx, rx) = channel();
+        let mock_port = MockSerialPort::new(vec![], tx);
+        let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
+        let commands = vec![
+            (1_u8, 0_u32),
+            (2, 0),
+            (3, 0),
+            (4, 0),
+        ];
+        driver.sync_write_position(commands).unwrap();
+        assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 254, 16, 131, 30, 2, 1, 0, 0, 2, 0, 0, 3, 0, 0, 4, 0, 0, 68]);
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn write_positions_writes() {
+        let (tx, rx) = channel();
+        let mock_port = MockSerialPort::new(vec![
+            Status::new(1, vec![]),
+        ], tx);
+        let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
+        driver.write_position(1, 150).unwrap();
+        assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 1, 5, 3, 30, 150, 0, 66]);
+        assert!(rx.try_recv().is_err());
     }
 }
