@@ -425,4 +425,20 @@ mod tests {
         assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 1, 5, 3, 30, 150, 0, 66]);
         assert!(rx.try_recv().is_err());
     }
+
+    #[test]
+    fn sync_write_torque_writes() {
+        let (tx, rx) = channel();
+        let mock_port = MockSerialPort::new(vec![], tx);
+        let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
+        let input = vec![
+            (1, 0),
+            (2, 0),
+            (3, 1),
+            (4, 1),
+        ];
+        driver.sync_write_torque(input).unwrap();
+        assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 254, 12, 131, 24, 1, 1, 0, 2, 0, 3, 1, 4, 1, 77]);
+        assert!(rx.try_recv().is_err());
+    }
 }
