@@ -198,6 +198,7 @@ impl Status {
 }
 
 pub(crate) trait DynamixelConnection {
+    fn flush(&mut self) -> Result<(), Box<dyn Error>>;
     fn write_message(&mut self, message: &dyn Instruction) -> Result<(), Box<dyn Error>>;
     fn read_message(&mut self) -> Result<Status, Box<dyn Error>>;
 }
@@ -207,7 +208,14 @@ struct DynamixelSerialPort {
 }
 
 impl DynamixelConnection for DynamixelSerialPort {
+    fn flush(&mut self) -> Result<(), Box<dyn Error>> {
+        let mut buffer = vec![];
+        self.port.read_to_end(&mut buffer)?;
+        Ok(())
+    }
+
     fn write_message(&mut self, message: &dyn Instruction) -> Result<(), Box<dyn Error>> {
+        self.flush()?;
         let payload = message.serialize();
         self.port.write(&payload)?;
         Ok(())

@@ -374,6 +374,10 @@ mod tests {
     }
 
     impl DynamixelConnection for MockSerialPort {
+        fn flush(&mut self) -> Result<(), Box<dyn Error>> {
+            Ok(())
+        }
+
         fn write_message(&mut self, message: &dyn Instruction) -> Result<(), Box<dyn Error>> {
             let payload = message.serialize();
             self.written_data.send(payload).unwrap();
