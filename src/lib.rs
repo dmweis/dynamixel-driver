@@ -5,6 +5,7 @@ use dynamixel_port::{DynamixelPort, Instruction, calc_checksum};
 use dynamixel_port::DynamixelConnection;
 
 use std::error::Error;
+use log::*;
 
 // EEPROM table
 #[allow(dead_code)]
@@ -135,7 +136,10 @@ impl Instruction for SyncWrite {
                     data.push(entry.value as u8);
                     data.push((entry.value >> 8) as u8);
                 },
-                _ => unimplemented!("Sync write only implement for u8 and u16")
+                _ => {
+                    error!("Sync write only implement for u8 and u16");
+                    unimplemented!("Sync write only implement for u8 and u16");
+                }
             }
         }
         let checksum = calc_checksum(&data[2..]);

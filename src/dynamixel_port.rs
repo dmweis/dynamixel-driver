@@ -174,11 +174,11 @@ impl Status {
 
     fn load(data: &[u8]) -> Result<Status, Box<dyn Error>> {
         if data.len() < 6 {
-            error!("Packet too small");
+            error!("Packet too small: {:?}", data);
             Err("Packet too small")?
         }
         if data[0] != 0xFF && data[1] != 0xFF {
-            error!("Header parsing error");
+            error!("Header parsing error: {:?}", data);
             Err("Header parsing error")?;
         }
         let id = data[2];
@@ -187,7 +187,7 @@ impl Status {
         let params = Vec::from_iter(data[5..5+(len as usize)].iter().cloned());
         let checksum = calc_checksum(&data[2..5+(len as usize)]);
         if &checksum != data.last().unwrap() {
-            error!("Checksum error");
+            error!("Checksum error: {:?}", data);
             Err("Checksum error")?
         }
         Ok(Status{
@@ -217,7 +217,8 @@ impl DynamixelConnection for DynamixelSerialPort {
         let mut buffer = [0; 4];
         self.port.read_exact(&mut buffer)?;
         if buffer[0] != 0xFF && buffer[1] != 0xFF {
-            Err("Invalid header")?
+            error!("Invalid header: {:?}", buffer);
+            Err("Invalid header.")?
         }
         let len = buffer[3] as usize;
         let mut data = Vec::with_capacity(len + 4);
