@@ -210,7 +210,9 @@ struct DynamixelSerialPort {
 impl DynamixelConnection for DynamixelSerialPort {
     fn flush(&mut self) -> Result<(), Box<dyn Error>> {
         let mut buffer = vec![];
-        self.port.read_to_end(&mut buffer)?;
+        if self.port.read_to_end(&mut buffer).is_ok() {
+            trace!("Some data was flushed");
+        }
         Ok(())
     }
 
