@@ -5,8 +5,7 @@ use std::{error::Error, io, str};
 use tokio::time::{timeout, Duration};
 use tokio_util::codec::{Decoder, Encoder};
 
-use crate::instructions::{ calc_checksum, Instruction, StatusError };
-
+use crate::instructions::{calc_checksum, Instruction, StatusError};
 
 #[derive(PartialEq, Debug)]
 pub(crate) struct Status {
@@ -22,7 +21,7 @@ impl Status {
     pub(crate) fn param(&self, index: usize) -> Option<u8> {
         match self.params.get(index) {
             Some(val) => Some(*val),
-            None => None
+            None => None,
         }
     }
 }
@@ -129,18 +128,7 @@ mod tests {
 
     #[test]
     fn test_message_decode() {
-        let mut payload = BytesMut::from(
-            vec![
-                0xFF,
-                0xFF,
-                0x01,
-                0x03,
-                0x00,
-                0x20,
-                0xDB
-            ]
-            .as_slice(),
-        );
+        let mut payload = BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0x00, 0x20, 0xDB].as_slice());
         let mut codec = DynamixelProtocol {};
         let res = codec.decode(&mut payload).unwrap().unwrap();
         assert_eq!(res, Status::new(1, vec![0x20]));
@@ -149,18 +137,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "input_voltage_error ")]
     fn test_input_voltage_error() {
-        let mut payload = BytesMut::from(
-            vec![
-                0xFF,
-                0xFF,
-                0x01,
-                0x03,
-                0b00000001,
-                0x20,
-                0xDB
-            ]
-            .as_slice(),
-        );
+        let mut payload =
+            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00000001, 0x20, 0xDB].as_slice());
         let mut codec = DynamixelProtocol {};
         let _ = codec.decode(&mut payload).unwrap().unwrap();
     }
@@ -168,18 +146,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "angle_limit_error ")]
     fn test_angle_limit_error() {
-        let mut payload = BytesMut::from(
-            vec![
-                0xFF,
-                0xFF,
-                0x01,
-                0x03,
-                0b00000010,
-                0x20,
-                0xDB
-            ]
-            .as_slice(),
-        );
+        let mut payload =
+            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00000010, 0x20, 0xDB].as_slice());
         let mut codec = DynamixelProtocol {};
         let _ = codec.decode(&mut payload).unwrap().unwrap();
     }
@@ -187,18 +155,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "overheating_error ")]
     fn test_overheating_error() {
-        let mut payload = BytesMut::from(
-            vec![
-                0xFF,
-                0xFF,
-                0x01,
-                0x03,
-                0b00000100,
-                0x20,
-                0xDB
-            ]
-            .as_slice(),
-        );
+        let mut payload =
+            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00000100, 0x20, 0xDB].as_slice());
         let mut codec = DynamixelProtocol {};
         let _ = codec.decode(&mut payload).unwrap().unwrap();
     }
@@ -206,18 +164,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "range_error ")]
     fn test_range_error() {
-        let mut payload = BytesMut::from(
-            vec![
-                0xFF,
-                0xFF,
-                0x01,
-                0x03,
-                0b00001000,
-                0x20,
-                0xDB
-            ]
-            .as_slice(),
-        );
+        let mut payload =
+            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00001000, 0x20, 0xDB].as_slice());
         let mut codec = DynamixelProtocol {};
         let _ = codec.decode(&mut payload).unwrap().unwrap();
     }
@@ -225,18 +173,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "checksum_error ")]
     fn test_checksum_error() {
-        let mut payload = BytesMut::from(
-            vec![
-                0xFF,
-                0xFF,
-                0x01,
-                0x03,
-                0b00010000,
-                0x20,
-                0xDB
-            ]
-            .as_slice(),
-        );
+        let mut payload =
+            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00010000, 0x20, 0xDB].as_slice());
         let mut codec = DynamixelProtocol {};
         let _ = codec.decode(&mut payload).unwrap().unwrap();
     }
@@ -244,18 +182,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "overload_error ")]
     fn test_overload_error() {
-        let mut payload = BytesMut::from(
-            vec![
-                0xFF,
-                0xFF,
-                0x01,
-                0x03,
-                0b00100000,
-                0x20,
-                0xDB
-            ]
-            .as_slice(),
-        );
+        let mut payload =
+            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00100000, 0x20, 0xDB].as_slice());
         let mut codec = DynamixelProtocol {};
         let _ = codec.decode(&mut payload).unwrap().unwrap();
     }
@@ -263,18 +191,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "instruction_error ")]
     fn test_instruction_error() {
-        let mut payload = BytesMut::from(
-            vec![
-                0xFF,
-                0xFF,
-                0x01,
-                0x03,
-                0b01000000,
-                0x20,
-                0xDB
-            ]
-            .as_slice(),
-        );
+        let mut payload =
+            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b01000000, 0x20, 0xDB].as_slice());
         let mut codec = DynamixelProtocol {};
         let _ = codec.decode(&mut payload).unwrap().unwrap();
     }

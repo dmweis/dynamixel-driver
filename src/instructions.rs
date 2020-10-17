@@ -1,4 +1,4 @@
-use std::{ error::Error, io };
+use std::{error::Error, io};
 
 #[derive(PartialEq, Debug)]
 pub(crate) struct StatusError {
@@ -80,11 +80,7 @@ pub(crate) struct ReadInstruction {
 
 impl ReadInstruction {
     pub(crate) fn new(id: u8, addr: u8, length: u8) -> ReadInstruction {
-        ReadInstruction {
-            id,
-            addr,
-            length,
-        }
+        ReadInstruction { id, addr, length }
     }
 }
 
@@ -94,8 +90,8 @@ impl Instruction for ReadInstruction {
             0xFF, // header
             0xFF,
             self.id, // ID
-            0x04, // Len
-            0x02, // Instruction
+            0x04,    // Len
+            0x02,    // Instruction
             self.addr,
             self.length,
         ];
@@ -136,10 +132,9 @@ impl Instruction for WriteInstruction {
         let len = (self.payload.len() + 3) as u8;
         let mut data = vec![
             0xFF, // header
-            0xFF,
-            self.id, // ID
-            len, // Length
-            0x03, // Instruction
+            0xFF, self.id, // ID
+            len,     // Length
+            0x03,    // Instruction
             self.addr,
         ];
         data.extend(self.payload.iter());
@@ -151,14 +146,12 @@ impl Instruction for WriteInstruction {
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub(crate) struct Ping {
-    id: u8
+    id: u8,
 }
 
 impl Ping {
     pub(crate) fn new(id: u8) -> Ping {
-        Ping {
-            id
-        }
+        Ping { id }
     }
 }
 
@@ -166,10 +159,9 @@ impl Instruction for Ping {
     fn serialize(&self) -> Vec<u8> {
         let mut data = vec![
             0xFF, // header
-            0xFF,
-            self.id, // ID
-            0x02, // Len
-            0x01 // Instruction
+            0xFF, self.id, // ID
+            0x02,    // Len
+            0x01,    // Instruction
         ];
         let checksum = calc_checksum(&data[2..]);
         data.push(checksum);
@@ -231,7 +223,11 @@ pub(crate) struct SyncWrite {
 
 impl SyncWrite {
     pub(crate) fn new(addr: u8, data_len: u8, data: Vec<SyncCommand>) -> SyncWrite {
-        SyncWrite { addr, data_len, data }
+        SyncWrite {
+            addr,
+            data_len,
+            data,
+        }
     }
 }
 
@@ -242,7 +238,7 @@ impl Instruction for SyncWrite {
             0xFF, // header
             0xFF,
             0xFE, // Always broadcast ID
-            len, // Len
+            len,  // Len
             0x83, // Instruction
             self.addr,
             self.data_len,
@@ -253,11 +249,11 @@ impl Instruction for SyncWrite {
             match self.data_len {
                 1 => {
                     data.push(entry.value as u8);
-                },
+                }
                 2 => {
                     data.push(entry.value as u8);
                     data.push((entry.value >> 8) as u8);
-                },
+                }
                 _ => {
                     unimplemented!("Sync write only implement for u8 and u16");
                 }

@@ -1,8 +1,10 @@
-mod serial_driver;
 mod instructions;
+mod serial_driver;
 
-use serial_driver::{ FramedSerialDriver, FramedDriver };
-use instructions::{ WriteInstruction, ReadInstruction, Ping, SyncCommand, SyncCommandFloat, SyncWrite };
+use instructions::{
+    Ping, ReadInstruction, SyncCommand, SyncCommandFloat, SyncWrite, WriteInstruction,
+};
+use serial_driver::{FramedDriver, FramedSerialDriver};
 
 use std::error::Error;
 
@@ -23,33 +25,27 @@ const PRESENT_POSITION: u8 = 36;
 const PRESENT_TEMPERATURE: u8 = 43;
 const PRESENT_VOLTAGE: u8 = 42;
 
-
 pub struct DynamixelDriver {
-    port: Box<dyn FramedDriver>
+    port: Box<dyn FramedDriver>,
 }
 
 impl DynamixelDriver {
     pub fn new(port_name: &str) -> Result<DynamixelDriver, Box<dyn Error>> {
         let driver = FramedSerialDriver::new(port_name)?;
         Ok(DynamixelDriver {
-            port: Box::new(driver)
+            port: Box::new(driver),
         })
     }
 
-    pub fn with_baud_rate(
-        port: &str,
-        baud_rate: u32,
-    ) -> Result<DynamixelDriver, Box<dyn Error>> {
+    pub fn with_baud_rate(port: &str, baud_rate: u32) -> Result<DynamixelDriver, Box<dyn Error>> {
         let driver = FramedSerialDriver::with_baud_rate(port, baud_rate)?;
         Ok(DynamixelDriver {
-            port: Box::new(driver)
+            port: Box::new(driver),
         })
     }
 
     fn with_driver(connection: Box<dyn FramedDriver>) -> DynamixelDriver {
-        DynamixelDriver {
-            port: connection
-        }
+        DynamixelDriver { port: connection }
     }
 
     async fn read_u8(&mut self, id: u8, addr: u8) -> Result<u8, Box<dyn Error>> {
@@ -97,7 +93,11 @@ impl DynamixelDriver {
         Ok(())
     }
 
-    pub async fn write_torque(&mut self, id: u8, torque_enabled: bool) -> Result<(), Box<dyn Error>> {
+    pub async fn write_torque(
+        &mut self,
+        id: u8,
+        torque_enabled: bool,
+    ) -> Result<(), Box<dyn Error>> {
         if torque_enabled {
             Ok(self.write_u8(id, TORQUE_ENABLED, 1).await?)
         } else {
@@ -129,13 +129,20 @@ impl DynamixelDriver {
         Ok(pos_rad)
     }
 
-    pub async fn write_compliance_slope_both(&mut self, id: u8, compliance: u8) -> Result<(), Box<dyn Error>> {
+    pub async fn write_compliance_slope_both(
+        &mut self,
+        id: u8,
+        compliance: u8,
+    ) -> Result<(), Box<dyn Error>> {
         self.write_u8(id, CW_COMPLIANCE_SLOPE, compliance).await?;
         self.write_u8(id, CWW_COMPLIANCE_SLOPE, compliance).await?;
         Ok(())
     }
 
-    pub async fn sync_write_compliance_both<T: Into<SyncCommand>>(&mut self, compliance: Vec<T>) -> Result<(), Box<dyn Error>> {
+    pub async fn sync_write_compliance_both<T: Into<SyncCommand>>(
+        &mut self,
+        compliance: Vec<T>,
+    ) -> Result<(), Box<dyn Error>> {
         let compliance: Vec<SyncCommand> = compliance
             .into_iter()
             .map(|command| command.into())
@@ -147,11 +154,12 @@ impl DynamixelDriver {
         Ok(())
     }
 
-    pub async fn sync_write_torque<T: Into<SyncCommand>>(&mut self, torque: Vec<T>) -> Result<(), Box<dyn Error>> {
-        let torque_commands: Vec<SyncCommand> = torque
-            .into_iter()
-            .map(|command| command.into())
-            .collect();
+    pub async fn sync_write_torque<T: Into<SyncCommand>>(
+        &mut self,
+        torque: Vec<T>,
+    ) -> Result<(), Box<dyn Error>> {
+        let torque_commands: Vec<SyncCommand> =
+            torque.into_iter().map(|command| command.into()).collect();
         let torque_message = SyncWrite::new(TORQUE_ENABLED, 1, torque_commands);
         self.port.send(Box::new(torque_message)).await?;
         Ok(())
@@ -163,7 +171,7 @@ impl DynamixelDriver {
     }
 
     pub async fn write_position_degrees(&mut self, id: u8, pos: f32) -> Result<(), Box<dyn Error>> {
-        let goal_position = ((pos*3.41) as i32) as u16;
+        let goal_position = ((pos * 3.41) as i32) as u16;
         self.write_u16(id, GOAL_POSITION, goal_position).await?;
         Ok(())
     }
@@ -173,7 +181,10 @@ impl DynamixelDriver {
         Ok(())
     }
 
-    pub async fn sync_write_position<T: Into<SyncCommand>>(&mut self, positions: Vec<T>) -> Result<(), Box<dyn Error>> {
+    pub async fn sync_write_position<T: Into<SyncCommand>>(
+        &mut self,
+        positions: Vec<T>,
+    ) -> Result<(), Box<dyn Error>> {
         let positions: Vec<SyncCommand> = positions
             .into_iter()
             .map(|command| command.into())
@@ -205,11 +216,11 @@ impl DynamixelDriver {
     //     Ok(())
     // }
 
-    pub async fn sync_write_moving_speed<T: Into<SyncCommand>>(&mut self, speeds: Vec<T>) -> Result<(), Box<dyn Error>> {
-        let speeds: Vec<SyncCommand> = speeds
-            .into_iter()
-            .map(|command| command.into())
-            .collect();
+    pub async fn sync_write_moving_speed<T: Into<SyncCommand>>(
+        &mut self,
+        speeds: Vec<T>,
+    ) -> Result<(), Box<dyn Error>> {
+        let speeds: Vec<SyncCommand> = speeds.into_iter().map(|command| command.into()).collect();
         let message = SyncWrite::new(MOVING_SPEED, 2, speeds);
         self.port.send(Box::new(message)).await?;
         Ok(())
@@ -252,134 +263,134 @@ mod tests {
     //     assert_eq!(payload, expected);
     // }
 
-//     #[test]
-//     fn ping_serialization() {
-//         let packet = Ping::new(1);
-//         let payload = packet.serialize();
-//         assert_eq!(payload, vec![0xFF_u8,0xFF,0x01,0x02,0x01,0xFB])
-//     }
+    //     #[test]
+    //     fn ping_serialization() {
+    //         let packet = Ping::new(1);
+    //         let payload = packet.serialize();
+    //         assert_eq!(payload, vec![0xFF_u8,0xFF,0x01,0x02,0x01,0xFB])
+    //     }
 
-//     #[test]
-//     fn sync_write_serialization_u16() {
-//         let params = vec![
-//             SyncCommand::new(1, 10),
-//             SyncCommand::new(2, 10),
-//         ];
-//         let packet = SyncWrite::new(30, 2, params);
-//         let payload = packet.serialize();
-//         assert_eq!(payload, vec![255, 255, 254, 10, 131, 30, 2, 1, 10, 0, 2, 10, 0, 61])
-//     }
+    //     #[test]
+    //     fn sync_write_serialization_u16() {
+    //         let params = vec![
+    //             SyncCommand::new(1, 10),
+    //             SyncCommand::new(2, 10),
+    //         ];
+    //         let packet = SyncWrite::new(30, 2, params);
+    //         let payload = packet.serialize();
+    //         assert_eq!(payload, vec![255, 255, 254, 10, 131, 30, 2, 1, 10, 0, 2, 10, 0, 61])
+    //     }
 
-//     #[test]
-//     fn sync_write_serialization_u8() {
-//         let params = vec![
-//             SyncCommand::new(1, 10),
-//             SyncCommand::new(2, 10),
-//         ];
-//         let packet = SyncWrite::new(30, 1, params);
-//         let payload = packet.serialize();
-//         assert_eq!(payload, vec![255, 255, 254, 8, 131, 30, 1, 1, 10, 2, 10, 64])
-//     }
+    //     #[test]
+    //     fn sync_write_serialization_u8() {
+    //         let params = vec![
+    //             SyncCommand::new(1, 10),
+    //             SyncCommand::new(2, 10),
+    //         ];
+    //         let packet = SyncWrite::new(30, 1, params);
+    //         let payload = packet.serialize();
+    //         assert_eq!(payload, vec![255, 255, 254, 8, 131, 30, 1, 1, 10, 2, 10, 64])
+    //     }
 
-//     #[test]
-//     #[should_panic(expected = "not implemented: Sync write only implement for u8 and u16")]
-//     fn sync_write_serialization_fail() {
-//         let params = vec![
-//             SyncCommand::new(1, 10),
-//             SyncCommand::new(2, 10),
-//         ];
-//         let packet = SyncWrite::new(30, 3, params);
-//         let _ = packet.serialize();
-//     }
+    //     #[test]
+    //     #[should_panic(expected = "not implemented: Sync write only implement for u8 and u16")]
+    //     fn sync_write_serialization_fail() {
+    //         let params = vec![
+    //             SyncCommand::new(1, 10),
+    //             SyncCommand::new(2, 10),
+    //         ];
+    //         let packet = SyncWrite::new(30, 3, params);
+    //         let _ = packet.serialize();
+    //     }
 
-//     struct MockSerialPort {
-//         written_data: Sender<Vec<u8>>,
-//         mock_read_data: Vec<Status>
-//     }
+    //     struct MockSerialPort {
+    //         written_data: Sender<Vec<u8>>,
+    //         mock_read_data: Vec<Status>
+    //     }
 
-//     impl MockSerialPort {
-//         fn new(mock_read_data: Vec<Status>, written_data: Sender<Vec<u8>>) -> MockSerialPort {
-//             MockSerialPort {
-//                 written_data,
-//                 mock_read_data,
-//             }
-//         }
-//     }
+    //     impl MockSerialPort {
+    //         fn new(mock_read_data: Vec<Status>, written_data: Sender<Vec<u8>>) -> MockSerialPort {
+    //             MockSerialPort {
+    //                 written_data,
+    //                 mock_read_data,
+    //             }
+    //         }
+    //     }
 
-//     impl DynamixelConnection for MockSerialPort {
-//         fn flush(&mut self) -> Result<(), Box<dyn Error>> {
-//             Ok(())
-//         }
+    //     impl DynamixelConnection for MockSerialPort {
+    //         fn flush(&mut self) -> Result<(), Box<dyn Error>> {
+    //             Ok(())
+    //         }
 
-//         fn write_message(&mut self, message: &dyn Instruction) -> Result<(), Box<dyn Error>> {
-//             let payload = message.serialize();
-//             self.written_data.send(payload).unwrap();
-//             Ok(())
-//         }
+    //         fn write_message(&mut self, message: &dyn Instruction) -> Result<(), Box<dyn Error>> {
+    //             let payload = message.serialize();
+    //             self.written_data.send(payload).unwrap();
+    //             Ok(())
+    //         }
 
-//         fn read_message(&mut self) -> Result<Status, Box<dyn Error>> {
-//             Ok(self.mock_read_data.remove(0))
-//         }
-//     }
+    //         fn read_message(&mut self) -> Result<Status, Box<dyn Error>> {
+    //             Ok(self.mock_read_data.remove(0))
+    //         }
+    //     }
 
-//     #[test]
-//     fn sync_write_compliance_writes() {
-//         let (tx, rx) = channel();
-//         let mock_port = MockSerialPort::new(vec![], tx);
-//         let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
-//         let commands = vec![
-//             (1_u8, 0_u32),
-//             (2, 0),
-//             (3, 0),
-//             (4, 0),
-//         ];
-//         driver.sync_write_compliance_both(commands).unwrap();
-//         assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 254, 12, 131, 28, 1, 1, 0, 2, 0, 3, 0, 4, 0, 75]);
-//         assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 254, 12, 131, 29, 1, 1, 0, 2, 0, 3, 0, 4, 0, 74]);
-//         assert!(rx.try_recv().is_err());
-//     }
+    //     #[test]
+    //     fn sync_write_compliance_writes() {
+    //         let (tx, rx) = channel();
+    //         let mock_port = MockSerialPort::new(vec![], tx);
+    //         let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
+    //         let commands = vec![
+    //             (1_u8, 0_u32),
+    //             (2, 0),
+    //             (3, 0),
+    //             (4, 0),
+    //         ];
+    //         driver.sync_write_compliance_both(commands).unwrap();
+    //         assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 254, 12, 131, 28, 1, 1, 0, 2, 0, 3, 0, 4, 0, 75]);
+    //         assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 254, 12, 131, 29, 1, 1, 0, 2, 0, 3, 0, 4, 0, 74]);
+    //         assert!(rx.try_recv().is_err());
+    //     }
 
-//     #[test]
-//     fn sync_write_positions_writes() {
-//         let (tx, rx) = channel();
-//         let mock_port = MockSerialPort::new(vec![], tx);
-//         let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
-//         let commands = vec![
-//             (1_u8, 0_u32),
-//             (2, 0),
-//             (3, 0),
-//             (4, 0),
-//         ];
-//         driver.sync_write_position(commands).unwrap();
-//         assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 254, 16, 131, 30, 2, 1, 0, 0, 2, 0, 0, 3, 0, 0, 4, 0, 0, 68]);
-//         assert!(rx.try_recv().is_err());
-//     }
+    //     #[test]
+    //     fn sync_write_positions_writes() {
+    //         let (tx, rx) = channel();
+    //         let mock_port = MockSerialPort::new(vec![], tx);
+    //         let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
+    //         let commands = vec![
+    //             (1_u8, 0_u32),
+    //             (2, 0),
+    //             (3, 0),
+    //             (4, 0),
+    //         ];
+    //         driver.sync_write_position(commands).unwrap();
+    //         assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 254, 16, 131, 30, 2, 1, 0, 0, 2, 0, 0, 3, 0, 0, 4, 0, 0, 68]);
+    //         assert!(rx.try_recv().is_err());
+    //     }
 
-//     #[test]
-//     fn write_positions_writes() {
-//         let (tx, rx) = channel();
-//         let mock_port = MockSerialPort::new(vec![
-//             Status::new(1, vec![]),
-//         ], tx);
-//         let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
-//         driver.write_position(1, 150).unwrap();
-//         assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 1, 5, 3, 30, 150, 0, 66]);
-//         assert!(rx.try_recv().is_err());
-//     }
+    //     #[test]
+    //     fn write_positions_writes() {
+    //         let (tx, rx) = channel();
+    //         let mock_port = MockSerialPort::new(vec![
+    //             Status::new(1, vec![]),
+    //         ], tx);
+    //         let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
+    //         driver.write_position(1, 150).unwrap();
+    //         assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 1, 5, 3, 30, 150, 0, 66]);
+    //         assert!(rx.try_recv().is_err());
+    //     }
 
-//     #[test]
-//     fn sync_write_torque_writes() {
-//         let (tx, rx) = channel();
-//         let mock_port = MockSerialPort::new(vec![], tx);
-//         let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
-//         let input = vec![
-//             (1, 0),
-//             (2, 0),
-//             (3, 1),
-//             (4, 1),
-//         ];
-//         driver.sync_write_torque(input).unwrap();
-//         assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 254, 12, 131, 24, 1, 1, 0, 2, 0, 3, 1, 4, 1, 77]);
-//         assert!(rx.try_recv().is_err());
-//     }
+    //     #[test]
+    //     fn sync_write_torque_writes() {
+    //         let (tx, rx) = channel();
+    //         let mock_port = MockSerialPort::new(vec![], tx);
+    //         let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
+    //         let input = vec![
+    //             (1, 0),
+    //             (2, 0),
+    //             (3, 1),
+    //             (4, 1),
+    //         ];
+    //         driver.sync_write_torque(input).unwrap();
+    //         assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 254, 12, 131, 24, 1, 1, 0, 2, 0, 3, 1, 4, 1, 77]);
+    //         assert!(rx.try_recv().is_err());
+    //     }
 }
