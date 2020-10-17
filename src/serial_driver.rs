@@ -70,7 +70,7 @@ impl Encoder<Box<dyn Instruction>> for DynamixelProtocol {
 }
 
 #[async_trait]
-pub(crate) trait FramedDriver {
+pub(crate) trait FramedDriver: Send + Sync {
     async fn send(&mut self, instruction: Box<dyn Instruction>) -> Result<(), Box<dyn Error>>;
     async fn receive(&mut self) -> Result<Status, Box<dyn Error>>;
 }
