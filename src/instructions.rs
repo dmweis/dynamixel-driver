@@ -205,6 +205,14 @@ impl SyncCommandFloat {
     pub fn new(id: u8, value: f32) -> SyncCommandFloat {
         SyncCommandFloat { id, value }
     }
+
+    pub fn id(&self) -> u8 {
+        self.id
+}
+
+    pub fn value(&self) -> f32 {
+        self.value
+    }
 }
 
 impl From<(u8, f32)> for SyncCommandFloat {

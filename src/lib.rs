@@ -194,27 +194,33 @@ impl DynamixelDriver {
         Ok(())
     }
 
-    // pub async fn sync_write_position_degrees(&mut self, positions: Vec<SyncCommandFloat>) -> Result<(), Box<dyn Error>> {
-    //     let positions_dyn_units: Vec<SyncCommand> = positions
-    //             .into_iter()
-    //             .map(|command| {
-    //                 let goal_position = ((command.value*3.41) as i32) as u32;
-    //                 SyncCommand::new(command.id, goal_position)
-    //             }).collect();
-    //     let message = SyncWrite::new(GOAL_POSITION, 2, positions_dyn_units);
-    //     self.port.send(Box::new(message)).await?;
-    //     Ok(())
-    // }
+    pub async fn sync_write_position_degrees(
+        &mut self,
+        positions: Vec<SyncCommandFloat>,
+    ) -> Result<(), Box<dyn Error>> {
+        let positions_dyn_units: Vec<SyncCommand> = positions
+            .into_iter()
+            .map(|command| {
+                let goal_position = ((command.value() * 3.41) as i32) as u32;
+                SyncCommand::new(command.id(), goal_position)
+            })
+            .collect();
+        let message = SyncWrite::new(GOAL_POSITION, 2, positions_dyn_units);
+        self.port.send(Box::new(message)).await?;
+        Ok(())
+    }
 
-    // pub async fn sync_write_position_rad(&mut self, positions: Vec<SyncCommandFloat>) -> Result<(), Box<dyn Error>> {
-    //     let positions_degrees: Vec<SyncCommandFloat> = positions
-    //             .into_iter()
-    //             .map(|command| {
-    //                 SyncCommandFloat::new(command.id, command.value.to_degrees())
-    //             }).collect();
-    //     self.sync_write_position_degrees(positions_degrees).await?;
-    //     Ok(())
-    // }
+    pub async fn sync_write_position_rad(
+        &mut self,
+        positions: Vec<SyncCommandFloat>,
+    ) -> Result<(), Box<dyn Error>> {
+        let positions_degrees: Vec<SyncCommandFloat> = positions
+            .into_iter()
+            .map(|command| SyncCommandFloat::new(command.id(), command.value().to_degrees()))
+            .collect();
+        self.sync_write_position_degrees(positions_degrees).await?;
+        Ok(())
+    }
 
     pub async fn sync_write_moving_speed<T: Into<SyncCommand>>(
         &mut self,
