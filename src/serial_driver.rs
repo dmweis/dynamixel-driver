@@ -2,10 +2,26 @@ use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use futures::{SinkExt, StreamExt};
 use std::{error::Error, io, str};
+use thiserror::Error;
 use tokio::time::{timeout, Duration};
 use tokio_util::codec::{Decoder, Encoder};
 
 use crate::instructions::{calc_checksum, Instruction, StatusError};
+
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub(crate) enum SerialPortError {
+    #[error("connection timeout")]
+    Timeout,
+    #[error("status packet error")]
+    StatusError(StatusError),
+    #[error("checksum error on arriving packet")]
+    ChecksumError,
+    #[error("invalid header")]
+    HeaderError,
+    #[error("reading error")]
+    ReadingError,
+}
 
 #[derive(PartialEq, Debug)]
 pub(crate) struct Status {
@@ -30,7 +46,7 @@ pub(crate) struct DynamixelProtocol;
 
 impl Decoder for DynamixelProtocol {
     type Item = Status;
-    type Error = io::Error;
+    type Error = Box<dyn std::error::Error>;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         if src.len() < 4 {
@@ -38,7 +54,7 @@ impl Decoder for DynamixelProtocol {
         }
         let buffer = src.as_ref();
         if buffer[0] != 0xFF && buffer[1] != 0xFF {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid Header"));
+            return Err(SerialPortError::HeaderError.into());
         }
         let id = buffer[2];
         let len = buffer[3] as usize;
@@ -51,7 +67,7 @@ impl Decoder for DynamixelProtocol {
         let params = message[5..5 + (len - 2)].to_vec();
         let checksum = calc_checksum(&message[2..5 + (len - 2)]);
         if &checksum != message.last().unwrap() {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "Checksum error"));
+            return Err(SerialPortError::ChecksumError.into());
         }
 
         Ok(Some(Status::new(id, params)))
@@ -75,7 +91,7 @@ pub(crate) trait FramedDriver: Send + Sync {
     async fn receive(&mut self) -> Result<Status, Box<dyn Error>>;
 }
 
-pub(crate) const TIMEOUT: u64 = 10;
+pub(crate) const TIMEOUT: u64 = 100;
 
 pub struct FramedSerialDriver {
     framed_port: tokio_util::codec::Framed<tokio_serial::Serial, DynamixelProtocol>,
@@ -115,8 +131,9 @@ impl FramedDriver for FramedSerialDriver {
 
     async fn receive(&mut self) -> Result<Status, Box<dyn Error>> {
         let response = timeout(Duration::from_millis(TIMEOUT), self.framed_port.next())
-            .await?
-            .ok_or("Failed receive message")??;
+            .await
+            .map_err(|_| SerialPortError::Timeout)?
+            .ok_or_else(|| SerialPortError::ReadingError)??;
         Ok(response)
     }
 }
