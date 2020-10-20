@@ -1,4 +1,3 @@
-use dynamixel_driver;
 mod lib;
 use clap::Clap;
 

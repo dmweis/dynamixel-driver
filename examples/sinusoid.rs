@@ -1,5 +1,4 @@
 use clap::Clap;
-use dynamixel_driver::DynamixelDriver;
 use std::time::Instant;
 mod lib;
 use tokio::time::{delay_for, Duration};
@@ -12,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut driver = dynamixel_driver::DynamixelDriver::new(&args.port)?;
 
     loop {
-        delay_for(Duration::from_millis(100)).await;
+        delay_for(Duration::from_millis(10)).await;
         driver
             .write_position_degrees(1, (start.elapsed().as_secs_f32()).sin() * 90.0 + 150.0)
             .await?;

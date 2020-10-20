@@ -6,13 +6,13 @@ use instructions::{
 };
 use serial_driver::{FramedDriver, FramedSerialDriver};
 
-use std::error::Error;
+use anyhow::Result;
 
 // EEPROM table
-const MODEL_NUMBER: u8 = 0;
-const FIRMWARE_VERSION: u8 = 2;
+// const MODEL_NUMBER: u8 = 0;
+// const FIRMWARE_VERSION: u8 = 2;
 const ID: u8 = 3;
-const BAUD_RATE: u8 = 4;
+// const BAUD_RATE: u8 = 4;
 const MAX_TORQUE: u8 = 14;
 
 // RAM table
@@ -30,32 +30,33 @@ pub struct DynamixelDriver {
 }
 
 impl DynamixelDriver {
-    pub fn new(port_name: &str) -> Result<DynamixelDriver, Box<dyn Error>> {
+    pub fn new(port_name: &str) -> Result<DynamixelDriver> {
         let driver = FramedSerialDriver::new(port_name)?;
         Ok(DynamixelDriver {
             port: Box::new(driver),
         })
     }
 
-    pub fn with_baud_rate(port: &str, baud_rate: u32) -> Result<DynamixelDriver, Box<dyn Error>> {
+    pub fn with_baud_rate(port: &str, baud_rate: u32) -> Result<DynamixelDriver> {
         let driver = FramedSerialDriver::with_baud_rate(port, baud_rate)?;
         Ok(DynamixelDriver {
             port: Box::new(driver),
         })
     }
 
+    #[cfg(test)]
     fn with_driver(connection: Box<dyn FramedDriver>) -> DynamixelDriver {
         DynamixelDriver { port: connection }
     }
 
-    async fn read_u8(&mut self, id: u8, addr: u8) -> Result<u8, Box<dyn Error>> {
+    async fn read_u8(&mut self, id: u8, addr: u8) -> Result<u8> {
         let command = ReadInstruction::new(id, addr, 1);
         self.port.send(Box::new(command)).await?;
         let response = self.port.receive().await?;
         Ok(response.param(0).unwrap())
     }
 
-    async fn read_u16(&mut self, id: u8, addr: u8) -> Result<u16, Box<dyn Error>> {
+    async fn read_u16(&mut self, id: u8, addr: u8) -> Result<u16> {
         let command = ReadInstruction::new(id, addr, 2);
         self.port.send(Box::new(command)).await?;
         let response = self.port.receive().await?;
@@ -67,37 +68,33 @@ impl DynamixelDriver {
         Ok(res)
     }
 
-    async fn write_u8(&mut self, id: u8, addr: u8, value: u8) -> Result<(), Box<dyn Error>> {
+    async fn write_u8(&mut self, id: u8, addr: u8, value: u8) -> Result<()> {
         let msg = WriteInstruction::with_u8(id, addr, value);
         self.port.send(Box::new(msg)).await?;
         let _response = self.port.receive().await?;
         Ok(())
     }
 
-    async fn write_u16(&mut self, id: u8, addr: u8, value: u16) -> Result<(), Box<dyn Error>> {
+    async fn write_u16(&mut self, id: u8, addr: u8, value: u16) -> Result<()> {
         let msg = WriteInstruction::with_u16(id, addr, value);
         self.port.send(Box::new(msg)).await?;
         let _response = self.port.receive().await?;
         Ok(())
     }
 
-    pub async fn ping(&mut self, id: u8) -> Result<(), Box<dyn Error>> {
+    pub async fn ping(&mut self, id: u8) -> Result<()> {
         let ping = Ping::new(id);
         self.port.send(Box::new(ping)).await?;
         let _status = self.port.receive().await?;
         Ok(())
     }
 
-    pub async fn write_id(&mut self, id: u8, new_id: u8) -> Result<(), Box<dyn Error>> {
+    pub async fn write_id(&mut self, id: u8, new_id: u8) -> Result<()> {
         self.write_u8(id, ID, new_id).await?;
         Ok(())
     }
 
-    pub async fn write_torque(
-        &mut self,
-        id: u8,
-        torque_enabled: bool,
-    ) -> Result<(), Box<dyn Error>> {
+    pub async fn write_torque(&mut self, id: u8, torque_enabled: bool) -> Result<()> {
         if torque_enabled {
             Ok(self.write_u8(id, TORQUE_ENABLED, 1).await?)
         } else {
@@ -105,35 +102,31 @@ impl DynamixelDriver {
         }
     }
 
-    pub async fn read_temperature(&mut self, id: u8) -> Result<u8, Box<dyn Error>> {
+    pub async fn read_temperature(&mut self, id: u8) -> Result<u8> {
         Ok(self.read_u8(id, PRESENT_TEMPERATURE).await?)
     }
 
-    pub async fn read_voltage(&mut self, id: u8) -> Result<f32, Box<dyn Error>> {
+    pub async fn read_voltage(&mut self, id: u8) -> Result<f32> {
         Ok(self.read_u8(id, PRESENT_VOLTAGE).await? as f32 / 10.0)
     }
 
-    pub async fn read_position(&mut self, id: u8) -> Result<u16, Box<dyn Error>> {
+    pub async fn read_position(&mut self, id: u8) -> Result<u16> {
         let position = self.read_u16(id, PRESENT_POSITION).await?;
         Ok(position)
     }
 
-    pub async fn read_position_degrees(&mut self, id: u8) -> Result<f32, Box<dyn Error>> {
+    pub async fn read_position_degrees(&mut self, id: u8) -> Result<f32> {
         let position = self.read_u16(id, PRESENT_POSITION).await? as f32;
         let position = position / 3.41;
         Ok(position)
     }
 
-    pub async fn read_position_rad(&mut self, id: u8) -> Result<f32, Box<dyn Error>> {
+    pub async fn read_position_rad(&mut self, id: u8) -> Result<f32> {
         let pos_rad = self.read_position_degrees(id).await?.to_radians();
         Ok(pos_rad)
     }
 
-    pub async fn write_compliance_slope_both(
-        &mut self,
-        id: u8,
-        compliance: u8,
-    ) -> Result<(), Box<dyn Error>> {
+    pub async fn write_compliance_slope_both(&mut self, id: u8, compliance: u8) -> Result<()> {
         self.write_u8(id, CW_COMPLIANCE_SLOPE, compliance).await?;
         self.write_u8(id, CWW_COMPLIANCE_SLOPE, compliance).await?;
         Ok(())
@@ -142,7 +135,7 @@ impl DynamixelDriver {
     pub async fn sync_write_compliance_both<T: Into<SyncCommand>>(
         &mut self,
         compliance: Vec<T>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<()> {
         let compliance: Vec<SyncCommand> = compliance
             .into_iter()
             .map(|command| command.into())
@@ -154,10 +147,7 @@ impl DynamixelDriver {
         Ok(())
     }
 
-    pub async fn sync_write_torque<T: Into<SyncCommand>>(
-        &mut self,
-        torque: Vec<T>,
-    ) -> Result<(), Box<dyn Error>> {
+    pub async fn sync_write_torque<T: Into<SyncCommand>>(&mut self, torque: Vec<T>) -> Result<()> {
         let torque_commands: Vec<SyncCommand> =
             torque.into_iter().map(|command| command.into()).collect();
         let torque_message = SyncWrite::new(TORQUE_ENABLED, 1, torque_commands);
@@ -165,18 +155,18 @@ impl DynamixelDriver {
         Ok(())
     }
 
-    pub async fn write_position(&mut self, id: u8, pos: u16) -> Result<(), Box<dyn Error>> {
+    pub async fn write_position(&mut self, id: u8, pos: u16) -> Result<()> {
         self.write_u16(id, GOAL_POSITION, pos).await?;
         Ok(())
     }
 
-    pub async fn write_position_degrees(&mut self, id: u8, pos: f32) -> Result<(), Box<dyn Error>> {
+    pub async fn write_position_degrees(&mut self, id: u8, pos: f32) -> Result<()> {
         let goal_position = ((pos * 3.41) as i32) as u16;
         self.write_u16(id, GOAL_POSITION, goal_position).await?;
         Ok(())
     }
 
-    pub async fn write_position_rad(&mut self, id: u8, pos: f32) -> Result<(), Box<dyn Error>> {
+    pub async fn write_position_rad(&mut self, id: u8, pos: f32) -> Result<()> {
         self.write_position_degrees(id, pos.to_degrees()).await?;
         Ok(())
     }
@@ -184,7 +174,7 @@ impl DynamixelDriver {
     pub async fn sync_write_position<T: Into<SyncCommand>>(
         &mut self,
         positions: Vec<T>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<()> {
         let positions: Vec<SyncCommand> = positions
             .into_iter()
             .map(|command| command.into())
@@ -197,7 +187,7 @@ impl DynamixelDriver {
     pub async fn sync_write_position_degrees(
         &mut self,
         positions: Vec<SyncCommandFloat>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<()> {
         let positions_dyn_units: Vec<SyncCommand> = positions
             .into_iter()
             .map(|command| {
@@ -213,7 +203,7 @@ impl DynamixelDriver {
     pub async fn sync_write_position_rad(
         &mut self,
         positions: Vec<SyncCommandFloat>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<()> {
         let positions_degrees: Vec<SyncCommandFloat> = positions
             .into_iter()
             .map(|command| SyncCommandFloat::new(command.id(), command.value().to_degrees()))
@@ -225,20 +215,20 @@ impl DynamixelDriver {
     pub async fn sync_write_moving_speed<T: Into<SyncCommand>>(
         &mut self,
         speeds: Vec<T>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<()> {
         let speeds: Vec<SyncCommand> = speeds.into_iter().map(|command| command.into()).collect();
         let message = SyncWrite::new(MOVING_SPEED, 2, speeds);
         self.port.send(Box::new(message)).await?;
         Ok(())
     }
 
-    pub async fn read_max_torque(&mut self, id: u8) -> Result<f32, Box<dyn Error>> {
+    pub async fn read_max_torque(&mut self, id: u8) -> Result<f32> {
         let max_torque = self.read_u16(id, MAX_TORQUE).await? as f32;
         let max_torque_percentage = max_torque / 2013.0;
         Ok(max_torque_percentage)
     }
 
-    pub async fn search_all(&mut self) -> Result<Vec<u8>, Box<dyn Error>> {
+    pub async fn search_all(&mut self) -> Result<Vec<u8>> {
         let mut ids = vec![];
         for i in 1..254 {
             if self.ping(i).await.is_ok() {

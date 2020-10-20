@@ -1,10 +1,12 @@
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use futures::{SinkExt, StreamExt};
-use std::{error::Error, io, str};
+use std::str;
 use thiserror::Error;
 use tokio::time::{timeout, Duration};
 use tokio_util::codec::{Decoder, Encoder};
+
+use anyhow::{self, Result};
 
 use crate::instructions::{calc_checksum, Instruction, StatusError};
 
@@ -13,7 +15,7 @@ use crate::instructions::{calc_checksum, Instruction, StatusError};
 pub(crate) enum SerialPortError {
     #[error("connection timeout")]
     Timeout,
-    #[error("status packet error")]
+    #[error("{0}")]
     StatusError(StatusError),
     #[error("checksum error on arriving packet")]
     ChecksumError,
@@ -46,9 +48,9 @@ pub(crate) struct DynamixelProtocol;
 
 impl Decoder for DynamixelProtocol {
     type Item = Status;
-    type Error = Box<dyn std::error::Error>;
+    type Error = anyhow::Error;
 
-    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>> {
         if src.len() < 4 {
             return Ok(None);
         }
@@ -75,9 +77,9 @@ impl Decoder for DynamixelProtocol {
 }
 
 impl Encoder<Box<dyn Instruction>> for DynamixelProtocol {
-    type Error = io::Error;
+    type Error = anyhow::Error;
 
-    fn encode(&mut self, data: Box<dyn Instruction>, buf: &mut BytesMut) -> Result<(), io::Error> {
+    fn encode(&mut self, data: Box<dyn Instruction>, buf: &mut BytesMut) -> Result<()> {
         let msg = data.serialize();
         buf.reserve(msg.len());
         buf.put(msg.as_ref());
@@ -87,8 +89,8 @@ impl Encoder<Box<dyn Instruction>> for DynamixelProtocol {
 
 #[async_trait]
 pub(crate) trait FramedDriver: Send + Sync {
-    async fn send(&mut self, instruction: Box<dyn Instruction>) -> Result<(), Box<dyn Error>>;
-    async fn receive(&mut self) -> Result<Status, Box<dyn Error>>;
+    async fn send(&mut self, instruction: Box<dyn Instruction>) -> Result<()>;
+    async fn receive(&mut self) -> Result<Status>;
 }
 
 pub(crate) const TIMEOUT: u64 = 100;
@@ -98,7 +100,7 @@ pub struct FramedSerialDriver {
 }
 
 impl FramedSerialDriver {
-    pub fn new(port: &str) -> Result<FramedSerialDriver, Box<dyn Error>> {
+    pub fn new(port: &str) -> Result<FramedSerialDriver> {
         let mut settings = tokio_serial::SerialPortSettings::default();
         settings.baud_rate = 1000000;
         settings.timeout = std::time::Duration::from_millis(TIMEOUT);
@@ -108,10 +110,7 @@ impl FramedSerialDriver {
         })
     }
 
-    pub fn with_baud_rate(
-        port: &str,
-        baud_rate: u32,
-    ) -> Result<FramedSerialDriver, Box<dyn Error>> {
+    pub fn with_baud_rate(port: &str, baud_rate: u32) -> Result<FramedSerialDriver> {
         let mut settings = tokio_serial::SerialPortSettings::default();
         settings.baud_rate = baud_rate;
         settings.timeout = std::time::Duration::from_millis(TIMEOUT);
@@ -124,12 +123,12 @@ impl FramedSerialDriver {
 
 #[async_trait]
 impl FramedDriver for FramedSerialDriver {
-    async fn send(&mut self, instruction: Box<dyn Instruction>) -> Result<(), Box<dyn Error>> {
+    async fn send(&mut self, instruction: Box<dyn Instruction>) -> Result<()> {
         self.framed_port.send(instruction).await?;
         Ok(())
     }
 
-    async fn receive(&mut self) -> Result<Status, Box<dyn Error>> {
+    async fn receive(&mut self) -> Result<Status> {
         let response = timeout(Duration::from_millis(TIMEOUT), self.framed_port.next())
             .await
             .map_err(|_| SerialPortError::Timeout)?

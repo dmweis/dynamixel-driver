@@ -1,4 +1,3 @@
-use dynamixel_driver;
 mod lib;
 use clap::Clap;
 
@@ -22,5 +21,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    Ok(())
 }

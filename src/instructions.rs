@@ -1,4 +1,4 @@
-use std::{error::Error, io};
+use crate::serial_driver::SerialPortError;
 
 #[derive(PartialEq, Debug)]
 pub(crate) struct StatusError {
@@ -12,7 +12,7 @@ pub(crate) struct StatusError {
 }
 
 impl StatusError {
-    pub(crate) fn check_error(flag: u8) -> Result<(), io::Error> {
+    pub(crate) fn check_error(flag: u8) -> Result<(), SerialPortError> {
         if flag == 0 {
             return Ok(());
         }
@@ -25,10 +25,7 @@ impl StatusError {
             overload_error: flag & (1 << 5) != 0,
             instruction_error: flag & (1 << 6) != 0,
         };
-        Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("{}", status_error),
-        ))
+        Err(SerialPortError::StatusError(status_error))
     }
 }
 
