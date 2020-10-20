@@ -1,7 +1,10 @@
-use dynamixel_driver;
+mod lib;
+use clap::Clap;
 
-fn main() {
-    let mut driver = dynamixel_driver::DynamixelDriver::new("COM11").unwrap();
-    driver.write_id(5, 1).unwrap();
-    driver.write_id(9, 2).unwrap();
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = lib::Args::parse();
+    let mut driver = dynamixel_driver::DynamixelDriver::new(&args.port)?;
+    driver.write_id(2, 1).await.unwrap();
+    Ok(())
 }

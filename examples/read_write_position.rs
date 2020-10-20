@@ -1,19 +1,22 @@
-use dynamixel_driver;
+mod lib;
+use clap::Clap;
 
-fn main() {
-    let mut driver = dynamixel_driver::DynamixelDriver::new("COM11").unwrap();
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = lib::Args::parse();
+    let mut driver = dynamixel_driver::DynamixelDriver::new(&args.port)?;
     loop {
-        driver.write_position_degrees(1, 0.0).unwrap();
+        driver.write_position_degrees(1, 100.0).await?;
         loop {
-            let pos = driver.read_position_degrees(1).unwrap();
-            if pos < 1.0 {
+            let pos = driver.read_position_degrees(1).await?;
+            if pos < 101.0 {
                 break;
             }
         }
-        driver.write_position_degrees(1, 300.0).unwrap();
+        driver.write_position_degrees(1, 200.0).await?;
         loop {
-            let pos = driver.read_position_degrees(1).unwrap();
-            if pos > 299.0 {
+            let pos = driver.read_position_degrees(1).await?;
+            if pos > 199.0 {
                 break;
             }
         }

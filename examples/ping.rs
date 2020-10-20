@@ -1,12 +1,15 @@
-use dynamixel_driver;
+use clap::Clap;
+mod lib;
 
-fn main() {
-    let mut driver = dynamixel_driver::DynamixelDriver::new("COM16").unwrap();
-    for i in 1..254 {
-        if driver.ping(i).is_ok() {
-            println!("Found servo at {}", i);
-        } else {
-            println!("Not found at {}", i);
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = lib::Args::parse();
+    let mut driver = dynamixel_driver::DynamixelDriver::new(&args.port)?;
+    for i in 0..254 {
+        match driver.ping(i).await {
+            Ok(()) => println!("=======> Found servo at {}", i),
+            Err(_) => println!("Servo not found at {}", i),
         }
     }
+    Ok(())
 }

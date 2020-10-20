@@ -1,27 +1,19 @@
-use dynamixel_driver::DynamixelDriver;
-use looprate::{ Rate, RateTimer };
-use std::time::Instant;
 use clap::Clap;
+use std::time::Instant;
+mod lib;
+use tokio::time::{delay_for, Duration};
 
-#[derive(Clap)]
-#[clap()]
-struct Args {
-    #[clap(
-        about = "Serial port to use"
-    )]
-    port: String,
-}
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = lib::Args::parse();
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args: Args = Args::parse();
     let start = Instant::now();
-    let mut rate = Rate::from_frequency(200.0);
-    let mut loop_rate_counter = RateTimer::new();
-    let mut driver = DynamixelDriver::new(&args.port).unwrap();
-    
+    let mut driver = dynamixel_driver::DynamixelDriver::new(&args.port)?;
+
     loop {
-        rate.wait();
-        driver.write_position_degrees(2, (start.elapsed().as_secs_f32()).sin() * 90.0 + 150.0)?;
-        loop_rate_counter.tick();
+        delay_for(Duration::from_millis(10)).await;
+        driver
+            .write_position_degrees(1, (start.elapsed().as_secs_f32()).sin() * 90.0 + 150.0)
+            .await?;
     }
 }

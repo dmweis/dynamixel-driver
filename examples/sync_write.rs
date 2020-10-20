@@ -1,17 +1,15 @@
-use dynamixel_driver::{DynamixelDriver, SyncCommand};
-use std::{time::Duration, thread::sleep};
+use std::{thread::sleep, time::Duration};
+mod lib;
+use clap::Clap;
 
-fn main() {
-    let mut driver = DynamixelDriver::new("COM11").unwrap();
-    let commands = vec![
-        SyncCommand::new(1, 1023),
-        SyncCommand::new(2, 1023),
-    ];
-    driver.sync_write_position(commands).unwrap();
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = lib::Args::parse();
+    let mut driver = dynamixel_driver::DynamixelDriver::new(&args.port)?;
+    let commands = vec![(1, 1023), (2, 1023)];
+    driver.sync_write_position(commands).await?;
     sleep(Duration::from_secs(2));
-    let commands = vec![
-        SyncCommand::new(1, 0),
-        SyncCommand::new(2, 0),
-    ];
-    driver.sync_write_position(commands).unwrap();
+    let commands = vec![(1, 0), (2, 0)];
+    driver.sync_write_position(commands).await?;
+    Ok(())
 }
