@@ -2,7 +2,7 @@ mod instructions;
 mod serial_driver;
 
 use instructions::{Instruction, SyncCommand, SyncCommandFloat};
-use serial_driver::{FramedDriver, FramedSerialDriver};
+use serial_driver::{FramedDriver, FramedSerialDriver, SerialPortError};
 
 use anyhow::Result;
 
@@ -51,39 +51,49 @@ impl DynamixelDriver {
         let command = Instruction::read_instruction(id, addr, 1);
         self.port.send(command).await?;
         let response = self.port.receive().await?;
-        Ok(response.param(0).unwrap())
+        if id != response.id() {
+            return Err(SerialPortError::IdMismatchError(id, response.id()).into());
+        }
+        Ok(response.as_u8()?)
     }
 
     async fn read_u16(&mut self, id: u8, addr: u8) -> Result<u16> {
         let command = Instruction::read_instruction(id, addr, 2);
         self.port.send(command).await?;
         let response = self.port.receive().await?;
-        let mut res = 0_u16;
-        let a = response.param(0).unwrap() as u16;
-        let b = response.param(1).unwrap() as u16;
-        res |= b << 8;
-        res |= a;
-        Ok(res)
+        if id != response.id() {
+            return Err(SerialPortError::IdMismatchError(id, response.id()).into());
+        }
+        Ok(response.as_u16()?)
     }
 
     async fn write_u8(&mut self, id: u8, addr: u8, value: u8) -> Result<()> {
         let msg = Instruction::write_u8(id, addr, value);
         self.port.send(msg).await?;
-        let _response = self.port.receive().await?;
+        let response = self.port.receive().await?;
+        if id != response.id() {
+            return Err(SerialPortError::IdMismatchError(id, response.id()).into());
+        }
         Ok(())
     }
 
     async fn write_u16(&mut self, id: u8, addr: u8, value: u16) -> Result<()> {
         let msg = Instruction::write_u16(id, addr, value);
         self.port.send(msg).await?;
-        let _response = self.port.receive().await?;
+        let response = self.port.receive().await?;
+        if id != response.id() {
+            return Err(SerialPortError::IdMismatchError(id, response.id()).into());
+        }
         Ok(())
     }
 
     pub async fn ping(&mut self, id: u8) -> Result<()> {
         let ping = Instruction::ping(id);
         self.port.send(ping).await?;
-        let _status = self.port.receive().await?;
+        let response = self.port.receive().await?;
+        if id != response.id() {
+            return Err(SerialPortError::IdMismatchError(id, response.id()).into());
+        }
         Ok(())
     }
 

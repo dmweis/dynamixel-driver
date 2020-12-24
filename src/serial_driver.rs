@@ -23,6 +23,10 @@ pub(crate) enum SerialPortError {
     HeaderError,
     #[error("reading error")]
     ReadingError,
+    #[error("decoding error for {0}")]
+    DecodingError(&'static str),
+    #[error("Id mismatch error. Expected {0} got {1}")]
+    IdMismatchError(u8, u8),
 }
 
 #[derive(PartialEq, Debug)]
@@ -36,11 +40,44 @@ impl Status {
         Status { id, params }
     }
 
-    pub(crate) fn param(&self, index: usize) -> Option<u8> {
-        match self.params.get(index) {
-            Some(val) => Some(*val),
-            None => None,
-        }
+    pub fn id(&self) -> u8 {
+        self.id
+    }
+
+    pub(crate) fn as_u8(&self) -> Result<u8> {
+        Ok(self
+            .params
+            .get(0)
+            .cloned()
+            .ok_or(SerialPortError::DecodingError("Failed unpacking u8"))?)
+    }
+
+    pub(crate) fn as_u16(&self) -> Result<u16> {
+        Ok(u16::from_le_bytes([
+            *self.params.get(0).ok_or(SerialPortError::DecodingError(
+                "Failed unpacking u16 first element",
+            ))?,
+            *self.params.get(1).ok_or(SerialPortError::DecodingError(
+                "Failed unpacking u16 second element",
+            ))?,
+        ]))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn as_u16_bad(&self) -> Result<u16> {
+        let mut res = 0_u16;
+        let a = *self
+            .params
+            .get(0)
+            .ok_or(SerialPortError::DecodingError("two"))? as u16;
+        let b = *self
+            .params
+            .get(1)
+            .ok_or(SerialPortError::DecodingError("three"))? as u16;
+
+        res |= b << 8;
+        res |= a;
+        Ok(res)
     }
 }
 
@@ -54,23 +91,28 @@ impl Decoder for DynamixelProtocol {
         if src.len() < 4 {
             return Ok(None);
         }
-        let buffer = src.as_ref();
-        if buffer[0] != 0xFF && buffer[1] != 0xFF {
+
+        let id = src[2];
+        let len = src[3] as usize;
+        if !src.starts_with(&[0xFF, 0xFF]) || len == 0 {
+            if let Some(start) = src.windows(2).position(|pos| pos == [0xFF, 0xFF]) {
+                let _ = src.split_to(start);
+            } else {
+                src.clear();
+            }
             return Err(SerialPortError::HeaderError.into());
         }
-        let id = buffer[2];
-        let len = buffer[3] as usize;
         if src.len() < 4 + len {
             return Ok(None);
         }
         let message = src.split_to(4 + len);
 
-        let _ = StatusError::check_error(message[4])?;
-        let params = message[5..5 + (len - 2)].to_vec();
         let checksum = calc_checksum(&message[2..5 + (len - 2)]);
         if &checksum != message.last().unwrap() {
             return Err(SerialPortError::ChecksumError.into());
         }
+        let _ = StatusError::check_error(message[4])?;
+        let params = message[5..5 + (len - 2)].to_vec();
 
         Ok(Some(Status::new(id, params)))
     }
@@ -151,65 +193,106 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "input_voltage_error ")]
     fn test_input_voltage_error() {
         let mut payload =
-            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00000001, 0x20, 0xDB].as_slice());
+            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00000001, 0x20, 0xDA].as_slice());
         let mut codec = DynamixelProtocol {};
-        let _ = codec.decode(&mut payload).unwrap().unwrap();
+        let err = codec.decode(&mut payload).unwrap_err();
+        let status = err.downcast::<SerialPortError>().unwrap();
+        if let SerialPortError::StatusError(status) = status {
+            assert!(status.input_voltage_error);
+        } else {
+            panic!();
+        }
     }
 
     #[test]
-    #[should_panic(expected = "angle_limit_error ")]
     fn test_angle_limit_error() {
         let mut payload =
-            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00000010, 0x20, 0xDB].as_slice());
+            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00000010, 0x20, 0xD9].as_slice());
         let mut codec = DynamixelProtocol {};
-        let _ = codec.decode(&mut payload).unwrap().unwrap();
+        let err = codec.decode(&mut payload).unwrap_err();
+        let status = err.downcast::<SerialPortError>().unwrap();
+        if let SerialPortError::StatusError(status) = status {
+            assert!(status.angle_limit_error);
+        } else {
+            panic!();
+        }
     }
 
     #[test]
-    #[should_panic(expected = "overheating_error ")]
     fn test_overheating_error() {
         let mut payload =
-            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00000100, 0x20, 0xDB].as_slice());
+            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00000100, 0x20, 0xD7].as_slice());
         let mut codec = DynamixelProtocol {};
-        let _ = codec.decode(&mut payload).unwrap().unwrap();
+        let err = codec.decode(&mut payload).unwrap_err();
+        let status = err.downcast::<SerialPortError>().unwrap();
+        if let SerialPortError::StatusError(status) = status {
+            assert!(status.overheating_error);
+        } else {
+            panic!();
+        }
     }
 
     #[test]
-    #[should_panic(expected = "range_error ")]
     fn test_range_error() {
         let mut payload =
-            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00001000, 0x20, 0xDB].as_slice());
+            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00001000, 0x20, 0xD3].as_slice());
         let mut codec = DynamixelProtocol {};
-        let _ = codec.decode(&mut payload).unwrap().unwrap();
+        let err = codec.decode(&mut payload).unwrap_err();
+        let status = err.downcast::<SerialPortError>().unwrap();
+        if let SerialPortError::StatusError(status) = status {
+            assert!(status.range_error);
+        } else {
+            panic!();
+        }
     }
 
     #[test]
-    #[should_panic(expected = "checksum_error ")]
     fn test_checksum_error() {
         let mut payload =
-            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00010000, 0x20, 0xDB].as_slice());
+            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00010000, 0x20, 0xCB].as_slice());
         let mut codec = DynamixelProtocol {};
-        let _ = codec.decode(&mut payload).unwrap().unwrap();
+        let err = codec.decode(&mut payload).unwrap_err();
+        let status = err.downcast::<SerialPortError>().unwrap();
+        if let SerialPortError::StatusError(status) = status {
+            assert!(status.checksum_error);
+        } else {
+            panic!();
+        }
     }
 
     #[test]
-    #[should_panic(expected = "overload_error ")]
     fn test_overload_error() {
         let mut payload =
-            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00100000, 0x20, 0xDB].as_slice());
+            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00100000, 0x20, 0xBB].as_slice());
         let mut codec = DynamixelProtocol {};
-        let _ = codec.decode(&mut payload).unwrap().unwrap();
+        let err = codec.decode(&mut payload).unwrap_err();
+        let status = err.downcast::<SerialPortError>().unwrap();
+        if let SerialPortError::StatusError(status) = status {
+            assert!(status.overload_error);
+        } else {
+            panic!();
+        }
     }
 
     #[test]
-    #[should_panic(expected = "instruction_error ")]
     fn test_instruction_error() {
         let mut payload =
-            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b01000000, 0x20, 0xDB].as_slice());
+            BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b01000000, 0x20, 0x9B].as_slice());
         let mut codec = DynamixelProtocol {};
-        let _ = codec.decode(&mut payload).unwrap().unwrap();
+        let err = codec.decode(&mut payload).unwrap_err();
+        let status = err.downcast::<SerialPortError>().unwrap();
+        if let SerialPortError::StatusError(status) = status {
+            assert!(status.instruction_error);
+        } else {
+            panic!();
+        }
+    }
+
+    #[test]
+    fn endianness_test() {
+        let a = Status::new(0, vec![10, 20]);
+        assert_eq!(a.as_u16().unwrap(), a.as_u16_bad().unwrap());
     }
 }

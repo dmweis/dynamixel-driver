@@ -1,10 +1,19 @@
 mod lib;
 use clap::Clap;
+use dynamixel_driver::DynamixelDriver;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> anyhow::Result<()> {
     let args = lib::Args::parse();
     let mut driver = dynamixel_driver::DynamixelDriver::new(&args.port)?;
+    loop {
+        if let Err(error) = do_loop(&mut driver).await {
+            println!("Failed loop with {}", error);
+        }
+    }
+}
+
+async fn do_loop(driver: &mut DynamixelDriver) -> anyhow::Result<()> {
     loop {
         driver.write_position_degrees(1, 100.0).await?;
         loop {

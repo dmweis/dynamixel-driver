@@ -2,13 +2,13 @@ use crate::serial_driver::SerialPortError;
 
 #[derive(PartialEq, Debug)]
 pub(crate) struct StatusError {
-    instruction_error: bool,
-    overload_error: bool,
-    checksum_error: bool,
-    range_error: bool,
-    overheating_error: bool,
-    angle_limit_error: bool,
-    input_voltage_error: bool,
+    pub instruction_error: bool,
+    pub overload_error: bool,
+    pub checksum_error: bool,
+    pub range_error: bool,
+    pub overheating_error: bool,
+    pub angle_limit_error: bool,
+    pub input_voltage_error: bool,
 }
 
 impl StatusError {
