@@ -242,95 +242,100 @@ impl DynamixelDriver {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use async_trait::async_trait;
+    use instructions::Instruction;
+    use serial_driver::Status;
+    use std::sync::{Arc, Mutex};
 
-    //     struct MockSerialPort {
-    //         written_data: Sender<Vec<u8>>,
-    //         mock_read_data: Vec<Status>
-    //     }
+    struct MockFramedDriver {
+        written_data: Arc<Mutex<Vec<Vec<u8>>>>,
+        mock_read_data: Vec<Status>,
+    }
 
-    //     impl MockSerialPort {
-    //         fn new(mock_read_data: Vec<Status>, written_data: Sender<Vec<u8>>) -> MockSerialPort {
-    //             MockSerialPort {
-    //                 written_data,
-    //                 mock_read_data,
-    //             }
-    //         }
-    //     }
+    impl MockFramedDriver {
+        fn new(mock_read_data: Vec<Status>, written_data: Arc<Mutex<Vec<Vec<u8>>>>) -> Self {
+            MockFramedDriver {
+                written_data,
+                mock_read_data,
+            }
+        }
+    }
 
-    //     impl DynamixelConnection for MockSerialPort {
-    //         fn flush(&mut self) -> Result<(), Box<dyn Error>> {
-    //             Ok(())
-    //         }
+    #[async_trait]
+    impl FramedDriver for MockFramedDriver {
+        async fn send(&mut self, message: Box<dyn Instruction>) -> Result<()> {
+            let payload = message.serialize();
+            self.written_data.lock().unwrap().push(payload);
+            Ok(())
+        }
 
-    //         fn write_message(&mut self, message: &dyn Instruction) -> Result<(), Box<dyn Error>> {
-    //             let payload = message.serialize();
-    //             self.written_data.send(payload).unwrap();
-    //             Ok(())
-    //         }
+        async fn receive(&mut self) -> Result<Status> {
+            Ok(self.mock_read_data.remove(0))
+        }
+    }
 
-    //         fn read_message(&mut self) -> Result<Status, Box<dyn Error>> {
-    //             Ok(self.mock_read_data.remove(0))
-    //         }
-    //     }
+    #[tokio::test]
+    async fn sync_write_compliance_writes() {
+        let writing_buffer = Arc::new(Mutex::new(vec![]));
+        let mock_port = MockFramedDriver::new(vec![], writing_buffer.clone());
+        let mut driver = DynamixelDriver::with_driver(Box::new(mock_port));
+        let commands = vec![(1_u8, 0_u32), (2, 0), (3, 0), (4, 0)];
+        driver.sync_write_compliance_both(commands).await.unwrap();
 
-    //     #[test]
-    //     fn sync_write_compliance_writes() {
-    //         let (tx, rx) = channel();
-    //         let mock_port = MockSerialPort::new(vec![], tx);
-    //         let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
-    //         let commands = vec![
-    //             (1_u8, 0_u32),
-    //             (2, 0),
-    //             (3, 0),
-    //             (4, 0),
-    //         ];
-    //         driver.sync_write_compliance_both(commands).unwrap();
-    //         assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 254, 12, 131, 28, 1, 1, 0, 2, 0, 3, 0, 4, 0, 75]);
-    //         assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 254, 12, 131, 29, 1, 1, 0, 2, 0, 3, 0, 4, 0, 74]);
-    //         assert!(rx.try_recv().is_err());
-    //     }
+        let mut writing_buffer_guard = writing_buffer.lock().unwrap();
+        assert_eq!(
+            writing_buffer_guard.remove(0),
+            vec![255, 255, 254, 12, 131, 28, 1, 1, 0, 2, 0, 3, 0, 4, 0, 75]
+        );
+        assert_eq!(
+            writing_buffer_guard.remove(0),
+            vec![255, 255, 254, 12, 131, 29, 1, 1, 0, 2, 0, 3, 0, 4, 0, 74]
+        );
+        assert!(writing_buffer_guard.is_empty());
+    }
 
-    //     #[test]
-    //     fn sync_write_positions_writes() {
-    //         let (tx, rx) = channel();
-    //         let mock_port = MockSerialPort::new(vec![], tx);
-    //         let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
-    //         let commands = vec![
-    //             (1_u8, 0_u32),
-    //             (2, 0),
-    //             (3, 0),
-    //             (4, 0),
-    //         ];
-    //         driver.sync_write_position(commands).unwrap();
-    //         assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 254, 16, 131, 30, 2, 1, 0, 0, 2, 0, 0, 3, 0, 0, 4, 0, 0, 68]);
-    //         assert!(rx.try_recv().is_err());
-    //     }
+    #[tokio::test]
+    async fn sync_write_positions_writes() {
+        let writing_buffer = Arc::new(Mutex::new(vec![]));
+        let mock_port = MockFramedDriver::new(vec![], writing_buffer.clone());
+        let mut driver = DynamixelDriver::with_driver(Box::new(mock_port));
+        let commands = vec![(1_u8, 0_u32), (2, 0), (3, 0), (4, 0)];
+        driver.sync_write_position(commands).await.unwrap();
 
-    //     #[test]
-    //     fn write_positions_writes() {
-    //         let (tx, rx) = channel();
-    //         let mock_port = MockSerialPort::new(vec![
-    //             Status::new(1, vec![]),
-    //         ], tx);
-    //         let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
-    //         driver.write_position(1, 150).unwrap();
-    //         assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 1, 5, 3, 30, 150, 0, 66]);
-    //         assert!(rx.try_recv().is_err());
-    //     }
+        let mut writing_buffer_guard = writing_buffer.lock().unwrap();
+        assert_eq!(
+            writing_buffer_guard.remove(0),
+            vec![255, 255, 254, 16, 131, 30, 2, 1, 0, 0, 2, 0, 0, 3, 0, 0, 4, 0, 0, 68]
+        );
+        assert!(writing_buffer_guard.is_empty());
+    }
 
-    //     #[test]
-    //     fn sync_write_torque_writes() {
-    //         let (tx, rx) = channel();
-    //         let mock_port = MockSerialPort::new(vec![], tx);
-    //         let mut driver = DynamixelDriver::new_with_connection(Box::new(mock_port));
-    //         let input = vec![
-    //             (1, 0),
-    //             (2, 0),
-    //             (3, 1),
-    //             (4, 1),
-    //         ];
-    //         driver.sync_write_torque(input).unwrap();
-    //         assert_eq!(rx.try_recv().unwrap(), vec![255, 255, 254, 12, 131, 24, 1, 1, 0, 2, 0, 3, 1, 4, 1, 77]);
-    //         assert!(rx.try_recv().is_err());
-    //     }
+    #[tokio::test]
+    async fn write_positions_writes() {
+        let writing_buffer = Arc::new(Mutex::new(vec![]));
+        let mock_port = MockFramedDriver::new(vec![Status::new(1, vec![])], writing_buffer.clone());
+        let mut driver = DynamixelDriver::with_driver(Box::new(mock_port));
+        driver.write_position(1, 150).await.unwrap();
+        let mut writing_buffer_guard = writing_buffer.lock().unwrap();
+        assert_eq!(
+            writing_buffer_guard.remove(0),
+            vec![255, 255, 1, 5, 3, 30, 150, 0, 66]
+        );
+        assert!(writing_buffer_guard.is_empty());
+    }
+
+    #[tokio::test]
+    async fn sync_write_torque_writes() {
+        let writing_buffer = Arc::new(Mutex::new(vec![]));
+        let mock_port = MockFramedDriver::new(vec![Status::new(1, vec![])], writing_buffer.clone());
+        let mut driver = DynamixelDriver::with_driver(Box::new(mock_port));
+        let input = vec![(1, 0), (2, 0), (3, 1), (4, 1)];
+        driver.sync_write_torque(input).await.unwrap();
+        let mut writing_buffer_guard = writing_buffer.lock().unwrap();
+        assert_eq!(
+            writing_buffer_guard.remove(0),
+            vec![255, 255, 254, 12, 131, 24, 1, 1, 0, 2, 0, 3, 1, 4, 1, 77]
+        );
+        assert!(writing_buffer_guard.is_empty());
+    }
 }
