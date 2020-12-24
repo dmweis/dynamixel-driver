@@ -132,7 +132,7 @@ impl FramedDriver for FramedSerialDriver {
         let response = timeout(Duration::from_millis(TIMEOUT), self.framed_port.next())
             .await
             .map_err(|_| SerialPortError::Timeout)?
-            .ok_or_else(|| SerialPortError::ReadingError)??;
+            .ok_or(SerialPortError::ReadingError)??;
         Ok(response)
     }
 }
