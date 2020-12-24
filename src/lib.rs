@@ -1,9 +1,7 @@
 mod instructions;
 mod serial_driver;
 
-use instructions::{
-    Ping, ReadInstruction, SyncCommand, SyncCommandFloat, SyncWrite, WriteInstruction,
-};
+use instructions::{Instruction, SyncCommand, SyncCommandFloat};
 use serial_driver::{FramedDriver, FramedSerialDriver};
 
 use anyhow::Result;
@@ -50,15 +48,15 @@ impl DynamixelDriver {
     }
 
     async fn read_u8(&mut self, id: u8, addr: u8) -> Result<u8> {
-        let command = ReadInstruction::new(id, addr, 1);
-        self.port.send(Box::new(command)).await?;
+        let command = Instruction::read_instruction(id, addr, 1);
+        self.port.send(command).await?;
         let response = self.port.receive().await?;
         Ok(response.param(0).unwrap())
     }
 
     async fn read_u16(&mut self, id: u8, addr: u8) -> Result<u16> {
-        let command = ReadInstruction::new(id, addr, 2);
-        self.port.send(Box::new(command)).await?;
+        let command = Instruction::read_instruction(id, addr, 2);
+        self.port.send(command).await?;
         let response = self.port.receive().await?;
         let mut res = 0_u16;
         let a = response.param(0).unwrap() as u16;
@@ -69,22 +67,22 @@ impl DynamixelDriver {
     }
 
     async fn write_u8(&mut self, id: u8, addr: u8, value: u8) -> Result<()> {
-        let msg = WriteInstruction::with_u8(id, addr, value);
-        self.port.send(Box::new(msg)).await?;
+        let msg = Instruction::write_u8(id, addr, value);
+        self.port.send(msg).await?;
         let _response = self.port.receive().await?;
         Ok(())
     }
 
     async fn write_u16(&mut self, id: u8, addr: u8, value: u16) -> Result<()> {
-        let msg = WriteInstruction::with_u16(id, addr, value);
-        self.port.send(Box::new(msg)).await?;
+        let msg = Instruction::write_u16(id, addr, value);
+        self.port.send(msg).await?;
         let _response = self.port.receive().await?;
         Ok(())
     }
 
     pub async fn ping(&mut self, id: u8) -> Result<()> {
-        let ping = Ping::new(id);
-        self.port.send(Box::new(ping)).await?;
+        let ping = Instruction::ping(id);
+        self.port.send(ping).await?;
         let _status = self.port.receive().await?;
         Ok(())
     }
@@ -140,18 +138,18 @@ impl DynamixelDriver {
             .into_iter()
             .map(|command| command.into())
             .collect();
-        let message_cw = SyncWrite::new(CW_COMPLIANCE_SLOPE, 1, compliance.clone());
-        let message_cww = SyncWrite::new(CWW_COMPLIANCE_SLOPE, 1, compliance);
-        self.port.send(Box::new(message_cw)).await?;
-        self.port.send(Box::new(message_cww)).await?;
+        let message_cw = Instruction::sync_command(CW_COMPLIANCE_SLOPE, 1, compliance.clone());
+        let message_cww = Instruction::sync_command(CWW_COMPLIANCE_SLOPE, 1, compliance);
+        self.port.send(message_cw).await?;
+        self.port.send(message_cww).await?;
         Ok(())
     }
 
     pub async fn sync_write_torque<T: Into<SyncCommand>>(&mut self, torque: Vec<T>) -> Result<()> {
         let torque_commands: Vec<SyncCommand> =
             torque.into_iter().map(|command| command.into()).collect();
-        let torque_message = SyncWrite::new(TORQUE_ENABLED, 1, torque_commands);
-        self.port.send(Box::new(torque_message)).await?;
+        let torque_message = Instruction::sync_command(TORQUE_ENABLED, 1, torque_commands);
+        self.port.send(torque_message).await?;
         Ok(())
     }
 
@@ -179,8 +177,8 @@ impl DynamixelDriver {
             .into_iter()
             .map(|command| command.into())
             .collect();
-        let message = SyncWrite::new(GOAL_POSITION, 2, positions);
-        self.port.send(Box::new(message)).await?;
+        let message = Instruction::sync_command(GOAL_POSITION, 2, positions);
+        self.port.send(message).await?;
         Ok(())
     }
 
@@ -195,8 +193,8 @@ impl DynamixelDriver {
                 SyncCommand::new(command.id(), goal_position)
             })
             .collect();
-        let message = SyncWrite::new(GOAL_POSITION, 2, positions_dyn_units);
-        self.port.send(Box::new(message)).await?;
+        let message = Instruction::sync_command(GOAL_POSITION, 2, positions_dyn_units);
+        self.port.send(message).await?;
         Ok(())
     }
 
@@ -217,8 +215,8 @@ impl DynamixelDriver {
         speeds: Vec<T>,
     ) -> Result<()> {
         let speeds: Vec<SyncCommand> = speeds.into_iter().map(|command| command.into()).collect();
-        let message = SyncWrite::new(MOVING_SPEED, 2, speeds);
-        self.port.send(Box::new(message)).await?;
+        let message = Instruction::sync_command(MOVING_SPEED, 2, speeds);
+        self.port.send(message).await?;
         Ok(())
     }
 
@@ -263,7 +261,7 @@ mod tests {
 
     #[async_trait]
     impl FramedDriver for MockFramedDriver {
-        async fn send(&mut self, message: Box<dyn Instruction>) -> Result<()> {
+        async fn send(&mut self, message: Instruction) -> Result<()> {
             let payload = message.serialize();
             self.written_data.lock().unwrap().push(payload);
             Ok(())

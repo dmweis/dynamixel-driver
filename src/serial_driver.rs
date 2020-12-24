@@ -76,10 +76,10 @@ impl Decoder for DynamixelProtocol {
     }
 }
 
-impl Encoder<Box<dyn Instruction>> for DynamixelProtocol {
+impl Encoder<Instruction> for DynamixelProtocol {
     type Error = anyhow::Error;
 
-    fn encode(&mut self, data: Box<dyn Instruction>, buf: &mut BytesMut) -> Result<()> {
+    fn encode(&mut self, data: Instruction, buf: &mut BytesMut) -> Result<()> {
         let msg = data.serialize();
         buf.reserve(msg.len());
         buf.put(msg.as_ref());
@@ -89,7 +89,7 @@ impl Encoder<Box<dyn Instruction>> for DynamixelProtocol {
 
 #[async_trait]
 pub(crate) trait FramedDriver: Send + Sync {
-    async fn send(&mut self, instruction: Box<dyn Instruction>) -> Result<()>;
+    async fn send(&mut self, instruction: Instruction) -> Result<()>;
     async fn receive(&mut self) -> Result<Status>;
 }
 
@@ -123,7 +123,7 @@ impl FramedSerialDriver {
 
 #[async_trait]
 impl FramedDriver for FramedSerialDriver {
-    async fn send(&mut self, instruction: Box<dyn Instruction>) -> Result<()> {
+    async fn send(&mut self, instruction: Instruction) -> Result<()> {
         self.framed_port.send(instruction).await?;
         Ok(())
     }
