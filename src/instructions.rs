@@ -1,6 +1,6 @@
 use crate::serial_driver::SerialPortError;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Eq)]
 pub(crate) struct StatusError {
     pub instruction_error: bool,
     pub overload_error: bool,

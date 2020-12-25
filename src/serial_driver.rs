@@ -10,7 +10,7 @@ use anyhow::{self, Result};
 
 use crate::instructions::{calc_checksum, Instruction, StatusError};
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub(crate) enum SerialPortError {
     #[error("connection timeout")]
@@ -94,7 +94,9 @@ impl Decoder for DynamixelProtocol {
 
         let id = src[2];
         let len = src[3] as usize;
-        if !src.starts_with(&[0xFF, 0xFF]) || len == 0 {
+        if !src.starts_with(&[0xFF, 0xFF]) || len < 2 {
+            // discard 1 byte in case we are starting with FF, FF
+            let _ = src.split_to(1);
             if let Some(start) = src.windows(2).position(|pos| pos == [0xFF, 0xFF]) {
                 let _ = src.split_to(start);
             } else {
@@ -105,12 +107,14 @@ impl Decoder for DynamixelProtocol {
         if src.len() < 4 + len {
             return Ok(None);
         }
-        let message = src.split_to(4 + len);
 
-        let checksum = calc_checksum(&message[2..5 + (len - 2)]);
-        if &checksum != message.last().unwrap() {
+        let checksum = calc_checksum(&src[2..5 + (len - 2)]);
+        if checksum != src[3 + len] {
+            // discard byte to force a move
+            let _ = src.split_to(1);
             return Err(SerialPortError::ChecksumError.into());
         }
+        let message = src.split_to(4 + len);
         let _ = StatusError::check_error(message[4])?;
         let params = message[5..5 + (len - 2)].to_vec();
 
@@ -190,6 +194,63 @@ mod tests {
         let mut codec = DynamixelProtocol {};
         let res = codec.decode(&mut payload).unwrap().unwrap();
         assert_eq!(res, Status::new(1, vec![0x20]));
+    }
+
+    #[test]
+    fn test_message_seek_and_decode() {
+        let mut payload = BytesMut::from(
+            vec![0xFF, 0x12, 0x21, 0xFF, 0xFF, 0x01, 0x03, 0x00, 0x20, 0xDB].as_slice(),
+        );
+        let mut codec = DynamixelProtocol {};
+        assert!(codec.decode(&mut payload).is_err());
+        let res = codec.decode(&mut payload).unwrap().unwrap();
+        assert_eq!(res, Status::new(1, vec![0x20]));
+    }
+
+    #[test]
+    fn test_message_skip_header_error_and_decode() {
+        let mut payload = BytesMut::from(
+            vec![
+                0xFF, 0x12, 0x21, 0xFF, 0xFF, 0x1, 0x1, 0xFF, 0xFF, 0x01, 0x03, 0x00, 0x20, 0xDB,
+            ]
+            .as_slice(),
+        );
+        let mut codec = DynamixelProtocol {};
+        assert_eq!(
+            codec
+                .decode(&mut payload)
+                .unwrap_err()
+                .downcast::<SerialPortError>()
+                .unwrap(),
+            SerialPortError::HeaderError
+        );
+        assert_eq!(
+            codec
+                .decode(&mut payload)
+                .unwrap_err()
+                .downcast::<SerialPortError>()
+                .unwrap(),
+            SerialPortError::HeaderError
+        );
+        let res = codec.decode(&mut payload).unwrap().unwrap();
+        assert_eq!(res, Status::new(1, vec![0x20]));
+    }
+
+    #[test]
+    fn test_message_skip_checksum_error_and_decode() {
+        let mut payload =
+            BytesMut::from(vec![0xFF, 0xFF, 0xFF, 0x04, 0x03, 0x00, 0x20, 0xD8].as_slice());
+        let mut codec = DynamixelProtocol {};
+        assert_eq!(
+            codec
+                .decode(&mut payload)
+                .unwrap_err()
+                .downcast::<SerialPortError>()
+                .unwrap(),
+            SerialPortError::ChecksumError
+        );
+        let res = codec.decode(&mut payload).unwrap().unwrap();
+        assert_eq!(res, Status::new(4, vec![0x20]));
     }
 
     #[test]
