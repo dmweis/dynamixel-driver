@@ -2,34 +2,10 @@ use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use futures::{SinkExt, StreamExt};
 use std::str;
-use thiserror::Error;
 use tokio::time::{timeout, Duration};
 use tokio_util::codec::{Decoder, Encoder};
 
-use crate::instructions::{calc_checksum, Instruction, StatusError};
-
-pub type Result<T> = std::result::Result<T, DynamixelDriverError>;
-
-#[derive(Error, Debug)]
-#[non_exhaustive]
-pub enum DynamixelDriverError {
-    #[error("connection timeout")]
-    Timeout,
-    #[error("{0}")]
-    StatusError(StatusError),
-    #[error("checksum error on arriving packet")]
-    ChecksumError,
-    #[error("invalid header")]
-    HeaderError,
-    #[error("reading error")]
-    ReadingError,
-    #[error("Failed reading")]
-    IoError(#[from] std::io::Error),
-    #[error("decoding error for {0}")]
-    DecodingError(&'static str),
-    #[error("Id mismatch error. Expected {0} got {1}")]
-    IdMismatchError(u8, u8),
-}
+use crate::instructions::{calc_checksum, DynamixelDriverError, Instruction, Result, StatusError};
 
 #[derive(PartialEq, Debug)]
 pub(crate) struct Status {
@@ -110,7 +86,7 @@ impl Decoder for DynamixelProtocol {
             } else {
                 src.clear();
             }
-            return Err(DynamixelDriverError::HeaderError.into());
+            return Err(DynamixelDriverError::HeaderError);
         }
         if src.len() < 4 + len {
             return Ok(None);
@@ -120,7 +96,7 @@ impl Decoder for DynamixelProtocol {
         if checksum != src[3 + len] {
             // discard byte to force a move
             let _ = src.split_to(1);
-            return Err(DynamixelDriverError::ChecksumError.into());
+            return Err(DynamixelDriverError::ChecksumError);
         }
         let message = src.split_to(4 + len);
         let _ = StatusError::check_error(message[4])?;

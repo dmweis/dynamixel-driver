@@ -1,4 +1,27 @@
-use crate::serial_driver::DynamixelDriverError;
+use thiserror::Error;
+
+pub(crate) type Result<T> = std::result::Result<T, DynamixelDriverError>;
+
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum DynamixelDriverError {
+    #[error("connection timeout")]
+    Timeout,
+    #[error("{0}")]
+    StatusError(StatusError),
+    #[error("checksum error on arriving packet")]
+    ChecksumError,
+    #[error("invalid header")]
+    HeaderError,
+    #[error("reading error")]
+    ReadingError,
+    #[error("Failed reading")]
+    IoError(#[from] std::io::Error),
+    #[error("decoding error for {0}")]
+    DecodingError(&'static str),
+    #[error("Id mismatch error. Expected {0} got {1}")]
+    IdMismatchError(u8, u8),
+}
 
 #[derive(PartialEq, Debug, Eq)]
 pub struct StatusError {
@@ -12,7 +35,7 @@ pub struct StatusError {
 }
 
 impl StatusError {
-    pub(crate) fn check_error(flag: u8) -> Result<(), DynamixelDriverError> {
+    pub(crate) fn check_error(flag: u8) -> Result<()> {
         if flag == 0 {
             return Ok(());
         }
@@ -171,6 +194,14 @@ pub struct SyncCommand {
 impl SyncCommand {
     pub fn new(id: u8, value: u32) -> SyncCommand {
         SyncCommand { id, value }
+    }
+
+    pub fn id(&self) -> u8 {
+        self.id
+    }
+
+    pub fn value(&self) -> u32 {
+        self.value
     }
 }
 

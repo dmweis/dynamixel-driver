@@ -1,8 +1,10 @@
 mod instructions;
 mod serial_driver;
 
-use instructions::{Instruction, SyncCommand, SyncCommandFloat};
-use serial_driver::{DynamixelDriverError, FramedDriver, FramedSerialDriver, Result};
+use instructions::{Instruction, Result};
+use serial_driver::{FramedDriver, FramedSerialDriver};
+
+pub use instructions::{DynamixelDriverError, SyncCommand, SyncCommandFloat};
 
 // EEPROM table
 // const MODEL_NUMBER: u8 = 0;
