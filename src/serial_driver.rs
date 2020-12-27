@@ -6,13 +6,13 @@ use thiserror::Error;
 use tokio::time::{timeout, Duration};
 use tokio_util::codec::{Decoder, Encoder};
 
-use anyhow::{self, Result};
-
 use crate::instructions::{calc_checksum, Instruction, StatusError};
 
-#[derive(Error, Debug, Eq, PartialEq)]
+pub type Result<T> = std::result::Result<T, DynamixelDriverError>;
+
+#[derive(Error, Debug)]
 #[non_exhaustive]
-pub(crate) enum SerialPortError {
+pub enum DynamixelDriverError {
     #[error("connection timeout")]
     Timeout,
     #[error("{0}")]
@@ -23,6 +23,8 @@ pub(crate) enum SerialPortError {
     HeaderError,
     #[error("reading error")]
     ReadingError,
+    #[error("Failed reading")]
+    IoError(#[from] std::io::Error),
     #[error("decoding error for {0}")]
     DecodingError(&'static str),
     #[error("Id mismatch error. Expected {0} got {1}")]
@@ -49,17 +51,23 @@ impl Status {
             .params
             .get(0)
             .cloned()
-            .ok_or(SerialPortError::DecodingError("Failed unpacking u8"))?)
+            .ok_or(DynamixelDriverError::DecodingError("Failed unpacking u8"))?)
     }
 
     pub(crate) fn as_u16(&self) -> Result<u16> {
         Ok(u16::from_le_bytes([
-            *self.params.get(0).ok_or(SerialPortError::DecodingError(
-                "Failed unpacking u16 first element",
-            ))?,
-            *self.params.get(1).ok_or(SerialPortError::DecodingError(
-                "Failed unpacking u16 second element",
-            ))?,
+            *self
+                .params
+                .get(0)
+                .ok_or(DynamixelDriverError::DecodingError(
+                    "Failed unpacking u16 first element",
+                ))?,
+            *self
+                .params
+                .get(1)
+                .ok_or(DynamixelDriverError::DecodingError(
+                    "Failed unpacking u16 second element",
+                ))?,
         ]))
     }
 
@@ -69,11 +77,11 @@ impl Status {
         let a = *self
             .params
             .get(0)
-            .ok_or(SerialPortError::DecodingError("two"))? as u16;
+            .ok_or(DynamixelDriverError::DecodingError("two"))? as u16;
         let b = *self
             .params
             .get(1)
-            .ok_or(SerialPortError::DecodingError("three"))? as u16;
+            .ok_or(DynamixelDriverError::DecodingError("three"))? as u16;
 
         res |= b << 8;
         res |= a;
@@ -85,7 +93,7 @@ pub(crate) struct DynamixelProtocol;
 
 impl Decoder for DynamixelProtocol {
     type Item = Status;
-    type Error = anyhow::Error;
+    type Error = DynamixelDriverError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>> {
         if src.len() < 4 {
@@ -102,7 +110,7 @@ impl Decoder for DynamixelProtocol {
             } else {
                 src.clear();
             }
-            return Err(SerialPortError::HeaderError.into());
+            return Err(DynamixelDriverError::HeaderError.into());
         }
         if src.len() < 4 + len {
             return Ok(None);
@@ -112,7 +120,7 @@ impl Decoder for DynamixelProtocol {
         if checksum != src[3 + len] {
             // discard byte to force a move
             let _ = src.split_to(1);
-            return Err(SerialPortError::ChecksumError.into());
+            return Err(DynamixelDriverError::ChecksumError.into());
         }
         let message = src.split_to(4 + len);
         let _ = StatusError::check_error(message[4])?;
@@ -123,7 +131,7 @@ impl Decoder for DynamixelProtocol {
 }
 
 impl Encoder<Instruction> for DynamixelProtocol {
-    type Error = anyhow::Error;
+    type Error = DynamixelDriverError;
 
     fn encode(&mut self, data: Instruction, buf: &mut BytesMut) -> Result<()> {
         let msg = data.serialize();
@@ -177,8 +185,8 @@ impl FramedDriver for FramedSerialDriver {
     async fn receive(&mut self) -> Result<Status> {
         let response = timeout(Duration::from_millis(TIMEOUT), self.framed_port.next())
             .await
-            .map_err(|_| SerialPortError::Timeout)?
-            .ok_or(SerialPortError::ReadingError)??;
+            .map_err(|_| DynamixelDriverError::Timeout)?
+            .ok_or(DynamixelDriverError::ReadingError)??;
         Ok(response)
     }
 }
@@ -216,22 +224,14 @@ mod tests {
             .as_slice(),
         );
         let mut codec = DynamixelProtocol {};
-        assert_eq!(
-            codec
-                .decode(&mut payload)
-                .unwrap_err()
-                .downcast::<SerialPortError>()
-                .unwrap(),
-            SerialPortError::HeaderError
-        );
-        assert_eq!(
-            codec
-                .decode(&mut payload)
-                .unwrap_err()
-                .downcast::<SerialPortError>()
-                .unwrap(),
-            SerialPortError::HeaderError
-        );
+        assert!(std::matches!(
+            codec.decode(&mut payload).unwrap_err(),
+            DynamixelDriverError::HeaderError
+        ));
+        assert!(std::matches!(
+            codec.decode(&mut payload).unwrap_err(),
+            DynamixelDriverError::HeaderError
+        ));
         let res = codec.decode(&mut payload).unwrap().unwrap();
         assert_eq!(res, Status::new(1, vec![0x20]));
     }
@@ -241,14 +241,10 @@ mod tests {
         let mut payload =
             BytesMut::from(vec![0xFF, 0xFF, 0xFF, 0x04, 0x03, 0x00, 0x20, 0xD8].as_slice());
         let mut codec = DynamixelProtocol {};
-        assert_eq!(
-            codec
-                .decode(&mut payload)
-                .unwrap_err()
-                .downcast::<SerialPortError>()
-                .unwrap(),
-            SerialPortError::ChecksumError
-        );
+        assert!(std::matches!(
+            codec.decode(&mut payload).unwrap_err(),
+            DynamixelDriverError::ChecksumError
+        ));
         let res = codec.decode(&mut payload).unwrap().unwrap();
         assert_eq!(res, Status::new(4, vec![0x20]));
     }
@@ -259,8 +255,7 @@ mod tests {
             BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00000001, 0x20, 0xDA].as_slice());
         let mut codec = DynamixelProtocol {};
         let err = codec.decode(&mut payload).unwrap_err();
-        let status = err.downcast::<SerialPortError>().unwrap();
-        if let SerialPortError::StatusError(status) = status {
+        if let DynamixelDriverError::StatusError(status) = err {
             assert!(status.input_voltage_error);
         } else {
             panic!();
@@ -273,8 +268,7 @@ mod tests {
             BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00000010, 0x20, 0xD9].as_slice());
         let mut codec = DynamixelProtocol {};
         let err = codec.decode(&mut payload).unwrap_err();
-        let status = err.downcast::<SerialPortError>().unwrap();
-        if let SerialPortError::StatusError(status) = status {
+        if let DynamixelDriverError::StatusError(status) = err {
             assert!(status.angle_limit_error);
         } else {
             panic!();
@@ -287,8 +281,7 @@ mod tests {
             BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00000100, 0x20, 0xD7].as_slice());
         let mut codec = DynamixelProtocol {};
         let err = codec.decode(&mut payload).unwrap_err();
-        let status = err.downcast::<SerialPortError>().unwrap();
-        if let SerialPortError::StatusError(status) = status {
+        if let DynamixelDriverError::StatusError(status) = err {
             assert!(status.overheating_error);
         } else {
             panic!();
@@ -301,8 +294,7 @@ mod tests {
             BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00001000, 0x20, 0xD3].as_slice());
         let mut codec = DynamixelProtocol {};
         let err = codec.decode(&mut payload).unwrap_err();
-        let status = err.downcast::<SerialPortError>().unwrap();
-        if let SerialPortError::StatusError(status) = status {
+        if let DynamixelDriverError::StatusError(status) = err {
             assert!(status.range_error);
         } else {
             panic!();
@@ -315,8 +307,7 @@ mod tests {
             BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00010000, 0x20, 0xCB].as_slice());
         let mut codec = DynamixelProtocol {};
         let err = codec.decode(&mut payload).unwrap_err();
-        let status = err.downcast::<SerialPortError>().unwrap();
-        if let SerialPortError::StatusError(status) = status {
+        if let DynamixelDriverError::StatusError(status) = err {
             assert!(status.checksum_error);
         } else {
             panic!();
@@ -329,8 +320,7 @@ mod tests {
             BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b00100000, 0x20, 0xBB].as_slice());
         let mut codec = DynamixelProtocol {};
         let err = codec.decode(&mut payload).unwrap_err();
-        let status = err.downcast::<SerialPortError>().unwrap();
-        if let SerialPortError::StatusError(status) = status {
+        if let DynamixelDriverError::StatusError(status) = err {
             assert!(status.overload_error);
         } else {
             panic!();
@@ -343,8 +333,7 @@ mod tests {
             BytesMut::from(vec![0xFF, 0xFF, 0x01, 0x03, 0b01000000, 0x20, 0x9B].as_slice());
         let mut codec = DynamixelProtocol {};
         let err = codec.decode(&mut payload).unwrap_err();
-        let status = err.downcast::<SerialPortError>().unwrap();
-        if let SerialPortError::StatusError(status) = status {
+        if let DynamixelDriverError::StatusError(status) = err {
             assert!(status.instruction_error);
         } else {
             panic!();

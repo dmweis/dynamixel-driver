@@ -2,9 +2,7 @@ mod instructions;
 mod serial_driver;
 
 use instructions::{Instruction, SyncCommand, SyncCommandFloat};
-use serial_driver::{FramedDriver, FramedSerialDriver, SerialPortError};
-
-use anyhow::Result;
+use serial_driver::{DynamixelDriverError, FramedDriver, FramedSerialDriver, Result};
 
 // EEPROM table
 // const MODEL_NUMBER: u8 = 0;
@@ -52,7 +50,7 @@ impl DynamixelDriver {
         self.port.send(command).await?;
         let response = self.port.receive().await?;
         if id != response.id() {
-            return Err(SerialPortError::IdMismatchError(id, response.id()).into());
+            return Err(DynamixelDriverError::IdMismatchError(id, response.id()));
         }
         Ok(response.as_u8()?)
     }
@@ -62,7 +60,7 @@ impl DynamixelDriver {
         self.port.send(command).await?;
         let response = self.port.receive().await?;
         if id != response.id() {
-            return Err(SerialPortError::IdMismatchError(id, response.id()).into());
+            return Err(DynamixelDriverError::IdMismatchError(id, response.id()));
         }
         Ok(response.as_u16()?)
     }
@@ -72,7 +70,7 @@ impl DynamixelDriver {
         self.port.send(msg).await?;
         let response = self.port.receive().await?;
         if id != response.id() {
-            return Err(SerialPortError::IdMismatchError(id, response.id()).into());
+            return Err(DynamixelDriverError::IdMismatchError(id, response.id()));
         }
         Ok(())
     }
@@ -82,7 +80,7 @@ impl DynamixelDriver {
         self.port.send(msg).await?;
         let response = self.port.receive().await?;
         if id != response.id() {
-            return Err(SerialPortError::IdMismatchError(id, response.id()).into());
+            return Err(DynamixelDriverError::IdMismatchError(id, response.id()));
         }
         Ok(())
     }
@@ -92,7 +90,7 @@ impl DynamixelDriver {
         self.port.send(ping).await?;
         let response = self.port.receive().await?;
         if id != response.id() {
-            return Err(SerialPortError::IdMismatchError(id, response.id()).into());
+            return Err(DynamixelDriverError::IdMismatchError(id, response.id()));
         }
         Ok(())
     }

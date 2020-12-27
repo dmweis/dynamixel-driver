@@ -1,7 +1,7 @@
-use crate::serial_driver::SerialPortError;
+use crate::serial_driver::DynamixelDriverError;
 
 #[derive(PartialEq, Debug, Eq)]
-pub(crate) struct StatusError {
+pub struct StatusError {
     pub instruction_error: bool,
     pub overload_error: bool,
     pub checksum_error: bool,
@@ -12,7 +12,7 @@ pub(crate) struct StatusError {
 }
 
 impl StatusError {
-    pub(crate) fn check_error(flag: u8) -> Result<(), SerialPortError> {
+    pub(crate) fn check_error(flag: u8) -> Result<(), DynamixelDriverError> {
         if flag == 0 {
             return Ok(());
         }
@@ -25,7 +25,7 @@ impl StatusError {
             overload_error: flag & (1 << 5) != 0,
             instruction_error: flag & (1 << 6) != 0,
         };
-        Err(SerialPortError::StatusError(status_error))
+        Err(DynamixelDriverError::StatusError(status_error))
     }
 }
 
@@ -220,7 +220,6 @@ mod tests {
     use super::*;
     use crate::serial_driver;
     use crate::*;
-    use anyhow::Result;
     use async_trait::async_trait;
     use serial_driver::{FramedDriver, Status};
     use std::sync::{Arc, Mutex};
