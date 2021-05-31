@@ -23,11 +23,10 @@ impl Status {
     }
 
     pub(crate) fn as_u8(&self) -> Result<u8> {
-        Ok(self
-            .params
+        self.params
             .get(0)
             .cloned()
-            .ok_or(DynamixelDriverError::DecodingError("Failed unpacking u8"))?)
+            .ok_or(DynamixelDriverError::DecodingError("Failed unpacking u8"))
     }
 
     pub(crate) fn as_u16(&self) -> Result<u16> {
@@ -131,9 +130,11 @@ pub struct FramedSerialDriver {
 
 impl FramedSerialDriver {
     pub fn new(port: &str) -> Result<FramedSerialDriver> {
-        let mut settings = tokio_serial::SerialPortSettings::default();
-        settings.baud_rate = 1000000;
-        settings.timeout = std::time::Duration::from_millis(TIMEOUT);
+        let settings = tokio_serial::SerialPortSettings {
+            baud_rate: 1000000,
+            timeout: std::time::Duration::from_millis(TIMEOUT),
+            ..Default::default()
+        };
         let serial_port = tokio_serial::Serial::from_path(port, &settings)?;
         Ok(FramedSerialDriver {
             framed_port: DynamixelProtocol.framed(serial_port),
@@ -141,9 +142,11 @@ impl FramedSerialDriver {
     }
 
     pub fn with_baud_rate(port: &str, baud_rate: u32) -> Result<FramedSerialDriver> {
-        let mut settings = tokio_serial::SerialPortSettings::default();
-        settings.baud_rate = baud_rate;
-        settings.timeout = std::time::Duration::from_millis(TIMEOUT);
+        let settings = tokio_serial::SerialPortSettings {
+            baud_rate,
+            timeout: std::time::Duration::from_millis(TIMEOUT),
+            ..Default::default()
+        };
         let serial_port = tokio_serial::Serial::from_path(port, &settings)?;
         Ok(FramedSerialDriver {
             framed_port: DynamixelProtocol.framed(serial_port),
