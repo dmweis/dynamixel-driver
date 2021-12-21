@@ -1,10 +1,10 @@
 mod lib;
-use clap::Clap;
 use dynamixel_driver::DynamixelDriver;
+use structopt::StructOpt;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let args = lib::Args::parse();
+    let args = lib::Args::from_args();
     let mut driver = dynamixel_driver::DynamixelDriver::new(&args.port)?;
     loop {
         if let Err(error) = do_loop(&mut driver).await {

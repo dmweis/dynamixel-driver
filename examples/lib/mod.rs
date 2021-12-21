@@ -1,8 +1,8 @@
-use clap::Clap;
+use structopt::StructOpt;
 
-#[derive(Clap)]
-#[clap()]
+#[derive(StructOpt)]
+#[structopt()]
 pub struct Args {
-    #[clap(about = "Serial port to use")]
+    #[structopt(about = "Serial port to use")]
     pub port: String,
 }
