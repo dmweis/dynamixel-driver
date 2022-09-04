@@ -15,8 +15,10 @@ const MAX_TORQUE: u8 = 14;
 
 // RAM table
 const TORQUE_ENABLED: u8 = 24;
+const CW_COMPLIANCE_MARGIN: u8 = 26;
+const CCW_COMPLIANCE_MARGIN: u8 = 27;
 const CW_COMPLIANCE_SLOPE: u8 = 28;
-const CWW_COMPLIANCE_SLOPE: u8 = 29;
+const CCW_COMPLIANCE_SLOPE: u8 = 29;
 const GOAL_POSITION: u8 = 30;
 const MOVING_SPEED: u8 = 32;
 const PRESENT_POSITION: u8 = 36;
@@ -134,13 +136,34 @@ impl DynamixelDriver {
         Ok(pos_rad)
     }
 
-    pub async fn write_compliance_slope_both(&mut self, id: u8, compliance: u8) -> Result<()> {
-        self.write_u8(id, CW_COMPLIANCE_SLOPE, compliance).await?;
-        self.write_u8(id, CWW_COMPLIANCE_SLOPE, compliance).await?;
+    pub async fn write_compliance_margin_both(&mut self, id: u8, compliance: u8) -> Result<()> {
+        self.write_u8(id, CW_COMPLIANCE_MARGIN, compliance).await?;
+        self.write_u8(id, CCW_COMPLIANCE_MARGIN, compliance).await?;
         Ok(())
     }
 
-    pub async fn sync_write_compliance_both<T: Into<SyncCommand>>(
+    pub async fn write_compliance_slope_both(&mut self, id: u8, compliance: u8) -> Result<()> {
+        self.write_u8(id, CW_COMPLIANCE_SLOPE, compliance).await?;
+        self.write_u8(id, CCW_COMPLIANCE_SLOPE, compliance).await?;
+        Ok(())
+    }
+
+    pub async fn sync_write_compliance_margin_both<T: Into<SyncCommand>>(
+        &mut self,
+        compliance: Vec<T>,
+    ) -> Result<()> {
+        let compliance: Vec<SyncCommand> = compliance
+            .into_iter()
+            .map(|command| command.into())
+            .collect();
+        let message_cw = Instruction::sync_command(CW_COMPLIANCE_MARGIN, 1, compliance.clone());
+        let message_cww = Instruction::sync_command(CCW_COMPLIANCE_MARGIN, 1, compliance);
+        self.port.send(message_cw).await?;
+        self.port.send(message_cww).await?;
+        Ok(())
+    }
+
+    pub async fn sync_write_compliance_slope_both<T: Into<SyncCommand>>(
         &mut self,
         compliance: Vec<T>,
     ) -> Result<()> {
@@ -149,7 +172,7 @@ impl DynamixelDriver {
             .map(|command| command.into())
             .collect();
         let message_cw = Instruction::sync_command(CW_COMPLIANCE_SLOPE, 1, compliance.clone());
-        let message_cww = Instruction::sync_command(CWW_COMPLIANCE_SLOPE, 1, compliance);
+        let message_cww = Instruction::sync_command(CCW_COMPLIANCE_SLOPE, 1, compliance);
         self.port.send(message_cw).await?;
         self.port.send(message_cww).await?;
         Ok(())
@@ -288,7 +311,10 @@ mod tests {
         let mock_port = MockFramedDriver::new(vec![], writing_buffer.clone());
         let mut driver = DynamixelDriver::with_driver(Box::new(mock_port));
         let commands = vec![(1_u8, 0_u32), (2, 0), (3, 0), (4, 0)];
-        driver.sync_write_compliance_both(commands).await.unwrap();
+        driver
+            .sync_write_compliance_slope_both(commands)
+            .await
+            .unwrap();
 
         let mut writing_buffer_guard = writing_buffer.lock().unwrap();
         assert_eq!(

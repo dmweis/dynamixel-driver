@@ -338,12 +338,38 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sync_write_compliance_writes() {
+    async fn sync_write_compliance_margin_writes() {
         let writing_buffer = Arc::new(Mutex::new(vec![]));
         let mock_port = MockFramedDriver::new(vec![], writing_buffer.clone());
         let mut driver = DynamixelDriver::with_driver(Box::new(mock_port));
         let commands = vec![(1_u8, 0_u32), (2, 0), (3, 0), (4, 0)];
-        driver.sync_write_compliance_both(commands).await.unwrap();
+        driver
+            .sync_write_compliance_margin_both(commands)
+            .await
+            .unwrap();
+
+        let mut writing_buffer_guard = writing_buffer.lock().unwrap();
+        assert_eq!(
+            writing_buffer_guard.remove(0),
+            vec![255, 255, 254, 12, 131, 26, 1, 1, 0, 2, 0, 3, 0, 4, 0, 77]
+        );
+        assert_eq!(
+            writing_buffer_guard.remove(0),
+            vec![255, 255, 254, 12, 131, 27, 1, 1, 0, 2, 0, 3, 0, 4, 0, 76]
+        );
+        assert!(writing_buffer_guard.is_empty());
+    }
+
+    #[tokio::test]
+    async fn sync_write_compliance_slope_writes() {
+        let writing_buffer = Arc::new(Mutex::new(vec![]));
+        let mock_port = MockFramedDriver::new(vec![], writing_buffer.clone());
+        let mut driver = DynamixelDriver::with_driver(Box::new(mock_port));
+        let commands = vec![(1_u8, 0_u32), (2, 0), (3, 0), (4, 0)];
+        driver
+            .sync_write_compliance_slope_both(commands)
+            .await
+            .unwrap();
 
         let mut writing_buffer_guard = writing_buffer.lock().unwrap();
         assert_eq!(
