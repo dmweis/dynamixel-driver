@@ -54,7 +54,7 @@ impl DynamixelDriver {
         if id != response.id() {
             return Err(DynamixelDriverError::IdMismatchError(id, response.id()));
         }
-        Ok(response.as_u8()?)
+        response.as_u8()
     }
 
     async fn read_u16(&mut self, id: u8, addr: u8) -> Result<u16> {
@@ -64,7 +64,7 @@ impl DynamixelDriver {
         if id != response.id() {
             return Err(DynamixelDriverError::IdMismatchError(id, response.id()));
         }
-        Ok(response.as_u16()?)
+        response.as_u16()
     }
 
     async fn write_u8(&mut self, id: u8, addr: u8, value: u8) -> Result<()> {
@@ -111,7 +111,7 @@ impl DynamixelDriver {
     }
 
     pub async fn read_temperature(&mut self, id: u8) -> Result<u8> {
-        Ok(self.read_u8(id, PRESENT_TEMPERATURE).await?)
+        self.read_u8(id, PRESENT_TEMPERATURE).await
     }
 
     pub async fn read_voltage(&mut self, id: u8) -> Result<f32> {

@@ -185,7 +185,7 @@ impl Instruction {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct SyncCommand {
     id: u8,
     value: u32,

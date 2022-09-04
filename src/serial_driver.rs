@@ -24,7 +24,7 @@ impl Status {
 
     pub(crate) fn as_u8(&self) -> Result<u8> {
         self.params
-            .get(0)
+            .first()
             .cloned()
             .ok_or(DynamixelDriverError::DecodingError("Failed unpacking u8"))
     }
@@ -33,7 +33,7 @@ impl Status {
         Ok(u16::from_le_bytes([
             *self
                 .params
-                .get(0)
+                .first()
                 .ok_or(DynamixelDriverError::DecodingError(
                     "Failed unpacking u16 first element",
                 ))?,
@@ -51,7 +51,7 @@ impl Status {
         let mut res = 0_u16;
         let a = *self
             .params
-            .get(0)
+            .first()
             .ok_or(DynamixelDriverError::DecodingError("two"))? as u16;
         let b = *self
             .params
@@ -98,7 +98,7 @@ impl Decoder for DynamixelProtocol {
             return Err(DynamixelDriverError::ChecksumError);
         }
         let message = src.split_to(4 + len);
-        let _ = StatusError::check_error(message[4])?;
+        StatusError::check_error(message[4])?;
         let params = message[5..5 + (len - 2)].to_vec();
 
         Ok(Some(Status::new(id, params)))
