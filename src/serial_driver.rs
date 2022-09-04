@@ -3,6 +3,7 @@ use bytes::{BufMut, BytesMut};
 use futures::{SinkExt, StreamExt};
 use std::str;
 use tokio::time::{timeout, Duration};
+use tokio_serial::SerialPortBuilderExt;
 use tokio_util::codec::{Decoder, Encoder};
 
 use crate::instructions::{calc_checksum, DynamixelDriverError, Instruction, Result, StatusError};
@@ -125,29 +126,27 @@ pub(crate) trait FramedDriver: Send + Sync {
 pub(crate) const TIMEOUT: u64 = 100;
 
 pub struct FramedSerialDriver {
-    framed_port: tokio_util::codec::Framed<tokio_serial::Serial, DynamixelProtocol>,
+    framed_port: tokio_util::codec::Framed<tokio_serial::SerialStream, DynamixelProtocol>,
 }
 
 impl FramedSerialDriver {
     pub fn new(port: &str) -> Result<FramedSerialDriver> {
-        let settings = tokio_serial::SerialPortSettings {
-            baud_rate: 1000000,
-            timeout: std::time::Duration::from_millis(TIMEOUT),
-            ..Default::default()
-        };
-        let serial_port = tokio_serial::Serial::from_path(port, &settings)?;
+        let serial_port = tokio_serial::new(port, 1000000)
+            .timeout(std::time::Duration::from_millis(TIMEOUT))
+            .open_native_async()
+            .map_err(|_| DynamixelDriverError::FailedOpeningSerialPort)?;
+
         Ok(FramedSerialDriver {
             framed_port: DynamixelProtocol.framed(serial_port),
         })
     }
 
     pub fn with_baud_rate(port: &str, baud_rate: u32) -> Result<FramedSerialDriver> {
-        let settings = tokio_serial::SerialPortSettings {
-            baud_rate,
-            timeout: std::time::Duration::from_millis(TIMEOUT),
-            ..Default::default()
-        };
-        let serial_port = tokio_serial::Serial::from_path(port, &settings)?;
+        let serial_port = tokio_serial::new(port, baud_rate)
+            .timeout(std::time::Duration::from_millis(TIMEOUT))
+            .open_native_async()
+            .map_err(|_| DynamixelDriverError::FailedOpeningSerialPort)?;
+
         Ok(FramedSerialDriver {
             framed_port: DynamixelProtocol.framed(serial_port),
         })

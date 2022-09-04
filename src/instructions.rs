@@ -21,6 +21,8 @@ pub enum DynamixelDriverError {
     DecodingError(&'static str),
     #[error("Id mismatch error. Expected {0} got {1}")]
     IdMismatchError(u8, u8),
+    #[error("Failed to open serial port")]
+    FailedOpeningSerialPort,
 }
 
 #[derive(PartialEq, Debug, Eq)]
