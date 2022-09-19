@@ -25,7 +25,22 @@ pub enum DynamixelDriverError {
     FailedOpeningSerialPort,
 }
 
-#[derive(PartialEq, Debug, Eq)]
+impl DynamixelDriverError {
+    pub fn is_recoverable(&self) -> bool {
+        matches!(
+            self,
+            DynamixelDriverError::Timeout
+                | DynamixelDriverError::StatusError(_)
+                | DynamixelDriverError::ChecksumError
+                | DynamixelDriverError::HeaderError
+                | DynamixelDriverError::ReadingError
+                | DynamixelDriverError::DecodingError(_)
+                | DynamixelDriverError::IdMismatchError(_, _)
+        )
+    }
+}
+
+#[derive(PartialEq, Debug, Eq, Clone)]
 pub struct StatusError {
     pub instruction_error: bool,
     pub overload_error: bool,
