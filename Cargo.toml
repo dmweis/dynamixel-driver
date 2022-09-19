@@ -1,10 +1,17 @@
 [package]
 name = "dynamixel-driver"
-version = "0.2.0"
-authors = ["David Weis <davidmichaelweis@gmail.com>"]
+version = "0.2.1"
+authors = ["David Weis <dweis7@gmail.com>"]
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Driver for Dynamixel v1 servos"
+documentation = "https://davidweis.dev/dynamixel-driver/dynamixel_driver/index.html"
+homepage = "https://github.com/dmweis/dynamixel-driver"
+repository = "https://github.com/dmweis/dynamixel-driver"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+keywords = ["LSS", "Lynxmotion", "servo", "async", "serial"]
+
 
 [dependencies]
 futures = "0.3"
