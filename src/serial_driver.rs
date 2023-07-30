@@ -1,9 +1,10 @@
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use futures::{SinkExt, StreamExt};
+use std::io::Write;
 use std::str;
 use tokio::time::{timeout, Duration};
-use tokio_serial::SerialPortBuilderExt;
+use tokio_serial::{SerialPort, SerialPortBuilderExt};
 use tokio_util::codec::{Decoder, Encoder};
 
 use crate::instructions::{calc_checksum, DynamixelDriverError, Instruction, Result, StatusError};
@@ -121,6 +122,7 @@ impl Encoder<Instruction> for DynamixelProtocol {
 pub(crate) trait FramedDriver: Send + Sync {
     async fn send(&mut self, instruction: Instruction) -> Result<()>;
     async fn receive(&mut self) -> Result<Status>;
+    async fn flush_and_clear(&mut self) -> Result<()>;
 }
 
 pub(crate) const TIMEOUT: u64 = 100;
@@ -166,6 +168,14 @@ impl FramedDriver for FramedSerialDriver {
             .map_err(|_| DynamixelDriverError::Timeout)?
             .ok_or(DynamixelDriverError::ReadingError)??;
         Ok(response)
+    }
+
+    async fn flush_and_clear(&mut self) -> Result<()> {
+        self.framed_port.get_mut().flush()?;
+        self.framed_port
+            .get_mut()
+            .clear(tokio_serial::ClearBuffer::All)?;
+        Ok(())
     }
 }
 

@@ -270,6 +270,11 @@ impl DynamixelDriver {
         }
         Ok(ids)
     }
+
+    pub async fn flush_and_clear(&mut self) -> Result<()> {
+        self.port.flush_and_clear().await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -304,6 +309,10 @@ mod tests {
 
         async fn receive(&mut self) -> Result<Status> {
             Ok(self.mock_read_data.remove(0))
+        }
+
+        async fn flush_and_clear(&mut self) -> Result<()> {
+            Ok(())
         }
     }
 

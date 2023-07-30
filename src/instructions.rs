@@ -7,7 +7,7 @@ pub(crate) type Result<T> = std::result::Result<T, DynamixelDriverError>;
 pub enum DynamixelDriverError {
     #[error("connection timeout")]
     Timeout,
-    #[error("{0}")]
+    #[error("status error {0}")]
     StatusError(StatusError),
     #[error("checksum error on arriving packet")]
     ChecksumError,
@@ -15,14 +15,16 @@ pub enum DynamixelDriverError {
     HeaderError,
     #[error("reading error")]
     ReadingError,
-    #[error("Failed reading")]
+    #[error("failed reading {0:?}")]
     IoError(#[from] std::io::Error),
     #[error("decoding error for {0}")]
     DecodingError(&'static str),
     #[error("Id mismatch error. Expected {0} got {1}")]
     IdMismatchError(u8, u8),
-    #[error("Failed to open serial port")]
+    #[error("failed to open serial port")]
     FailedOpeningSerialPort,
+    #[error("tokio serial error {0:?}")]
+    TokioSerialError(#[from] tokio_serial::Error),
 }
 
 impl DynamixelDriverError {
@@ -349,6 +351,10 @@ mod tests {
 
         async fn receive(&mut self) -> Result<Status> {
             Ok(self.mock_read_data.remove(0))
+        }
+
+        async fn flush_and_clear(&mut self) -> Result<()> {
+            Ok(())
         }
     }
 
