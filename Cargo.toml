@@ -1,31 +1,30 @@
 [package]
-name = "dynamixel-driver"
-version = "0.2.1"
 authors = ["David Weis <dweis7@gmail.com>"]
 edition = "2021"
+name = "dynamixel-driver"
+version = "0.2.2"
 
 description = "Driver for Dynamixel v1 servos"
 documentation = "https://davidweis.dev/dynamixel-driver/dynamixel_driver/index.html"
 homepage = "https://github.com/dmweis/dynamixel-driver"
-repository = "https://github.com/dmweis/dynamixel-driver"
-readme = "README.md"
-license = "MIT OR Apache-2.0"
 keywords = ["LSS", "Lynxmotion", "servo", "async", "serial"]
-
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/dmweis/dynamixel-driver"
 
 [dependencies]
-futures = "0.3"
-tokio-serial = { version = "5.4.1", default-features = false }
-bytes = "1.0"
-tokio = { version = "1.21", features = ["time"], default-features = false }
-tokio-util = { version = "0.7", features = ["codec"], default-features = false }
 async-trait = "0.1"
+bytes = "1"
+futures = "0.3"
 thiserror = "^1.0"
+tokio = {version = "1", features = ["time"], default-features = false}
+tokio-serial = {version = "5.4", default-features = false}
+tokio-util = {version = "0.7", features = ["codec"], default-features = false}
 
 [dev-dependencies]
-tokio = { version = "1.21", features = [
-    "macros",
-    "rt-multi-thread",
-], default-features = false }
-structopt = "0.3"
 anyhow = "1.0"
+structopt = "0.3"
+tokio = {version = "1.21", features = [
+  "macros",
+  "rt-multi-thread",
+], default-features = false}

@@ -1,10 +1,16 @@
 use std::{thread::sleep, time::Duration};
-mod lib;
 use structopt::StructOpt;
+
+#[derive(StructOpt)]
+#[structopt()]
+pub struct Args {
+    #[structopt(about = "Serial port to use")]
+    pub port: String,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = lib::Args::from_args();
+    let args = Args::from_args();
     let mut driver = dynamixel_driver::DynamixelDriver::new(&args.port)?;
     let commands = vec![(1, 1023), (2, 1023)];
     driver.sync_write_position(commands).await?;

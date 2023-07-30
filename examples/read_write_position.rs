@@ -1,10 +1,16 @@
-mod lib;
 use dynamixel_driver::DynamixelDriver;
 use structopt::StructOpt;
 
+#[derive(StructOpt)]
+#[structopt()]
+pub struct Args {
+    #[structopt(about = "Serial port to use")]
+    pub port: String,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let args = lib::Args::from_args();
+    let args = Args::from_args();
     let mut driver = dynamixel_driver::DynamixelDriver::new(&args.port)?;
     loop {
         if let Err(error) = do_loop(&mut driver).await {
