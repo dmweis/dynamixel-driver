@@ -175,6 +175,8 @@ impl FramedDriver for FramedSerialDriver {
         self.framed_port
             .get_mut()
             .clear(tokio_serial::ClearBuffer::All)?;
+        // receive and discard any leftover bytes
+        _ = self.receive().await;
         Ok(())
     }
 }
