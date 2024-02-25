@@ -9,10 +9,10 @@ pub enum DynamixelDriverError {
     Timeout,
     #[error("status error {0:?}")]
     StatusError(StatusError),
-    #[error("checksum error on arriving packet")]
-    ChecksumError,
-    #[error("header length less than 2")]
-    HeaderLenTooSmall,
+    #[error("checksum error expected {0:?} received {1:?}")]
+    ChecksumError(u8, u8),
+    #[error("header length too small {0:?}")]
+    HeaderLenTooSmall(usize),
     #[error("reading error")]
     ReadingError,
     #[error("failed reading {0:?}")]
@@ -33,7 +33,7 @@ impl DynamixelDriverError {
             self,
             DynamixelDriverError::Timeout
                 | DynamixelDriverError::StatusError(_)
-                | DynamixelDriverError::ChecksumError
+                | DynamixelDriverError::ChecksumError(_, _)
                 | DynamixelDriverError::ReadingError
                 | DynamixelDriverError::DecodingError(_)
                 | DynamixelDriverError::IdMismatchError(_, _)
@@ -352,7 +352,7 @@ mod tests {
             Ok(self.mock_read_data.remove(0))
         }
 
-        async fn flush_and_clear(&mut self) -> Result<()> {
+        async fn clear_io_buffers(&mut self) -> Result<()> {
             Ok(())
         }
     }

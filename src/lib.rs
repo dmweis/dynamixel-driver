@@ -271,8 +271,8 @@ impl DynamixelDriver {
         Ok(ids)
     }
 
-    pub async fn flush_and_clear(&mut self) -> Result<()> {
-        self.port.flush_and_clear().await?;
+    pub async fn clear_io_buffers(&mut self) -> Result<()> {
+        self.port.clear_io_buffers().await?;
         Ok(())
     }
 }
@@ -311,7 +311,7 @@ mod tests {
             Ok(self.mock_read_data.remove(0))
         }
 
-        async fn flush_and_clear(&mut self) -> Result<()> {
+        async fn clear_io_buffers(&mut self) -> Result<()> {
             Ok(())
         }
     }

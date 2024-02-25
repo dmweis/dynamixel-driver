@@ -81,9 +81,6 @@ impl Decoder for DynamixelProtocol {
         let id = src[2];
         let len = src[3] as usize;
         if !src.starts_with(&[0xFF, 0xFF]) {
-            // discard 1 byte in case we are starting with FF, FF
-            // let buffer_copy = src.clone().into();
-            let _ = src.split_to(1);
             if let Some(start) = src.windows(2).position(|pos| pos == [0xFF, 0xFF]) {
                 let _ = src.split_to(start);
             } else {
@@ -95,24 +92,23 @@ impl Decoder for DynamixelProtocol {
         }
         // do this check after checking header
         if len < 2 {
-            // discard 1 byte in case we are starting with FF, FF
+            // discard byte to force a move
             let _ = src.split_to(1);
-            if let Some(start) = src.windows(2).position(|pos| pos == [0xFF, 0xFF]) {
-                let _ = src.split_to(start);
-            } else {
-                src.clear();
-            }
-            return Err(DynamixelDriverError::HeaderLenTooSmall);
+            return Err(DynamixelDriverError::HeaderLenTooSmall(len));
         }
         if src.len() < 4 + len {
             return Ok(None);
         }
 
-        let checksum = calc_checksum(&src[2..5 + (len - 2)]);
-        if checksum != src[3 + len] {
+        let expected_checksum = calc_checksum(&src[2..5 + (len - 2)]);
+        let received_checksum = src[3 + len];
+        if expected_checksum != received_checksum {
             // discard byte to force a move
             let _ = src.split_to(1);
-            return Err(DynamixelDriverError::ChecksumError);
+            return Err(DynamixelDriverError::ChecksumError(
+                expected_checksum,
+                received_checksum,
+            ));
         }
         let message = src.split_to(4 + len);
         StatusError::check_error(message[4])?;
@@ -137,7 +133,7 @@ impl Encoder<Instruction> for DynamixelProtocol {
 pub(crate) trait FramedDriver: Send + Sync {
     async fn send(&mut self, instruction: Instruction) -> Result<()>;
     async fn receive(&mut self) -> Result<Status>;
-    async fn flush_and_clear(&mut self) -> Result<()>;
+    async fn clear_io_buffers(&mut self) -> Result<()>;
 }
 
 pub(crate) const TIMEOUT: u64 = 100;
@@ -185,13 +181,11 @@ impl FramedDriver for FramedSerialDriver {
         Ok(response)
     }
 
-    async fn flush_and_clear(&mut self) -> Result<()> {
+    async fn clear_io_buffers(&mut self) -> Result<()> {
         self.framed_port.get_mut().flush()?;
         self.framed_port
             .get_mut()
             .clear(tokio_serial::ClearBuffer::All)?;
-        // receive and discard any leftover bytes
-        _ = self.receive().await;
         Ok(())
     }
 }
@@ -232,8 +226,10 @@ mod tests {
         assert!(codec.decode(&mut payload).unwrap().is_none());
         assert!(std::matches!(
             codec.decode(&mut payload).unwrap_err(),
-            DynamixelDriverError::HeaderLenTooSmall
+            DynamixelDriverError::HeaderLenTooSmall(1)
         ));
+
+        assert!(codec.decode(&mut payload).unwrap().is_none());
         let res = codec.decode(&mut payload).unwrap().unwrap();
         assert_eq!(res, Status::new(1, vec![0x20]));
     }
@@ -245,7 +241,7 @@ mod tests {
         let mut codec = DynamixelProtocol {};
         assert!(std::matches!(
             codec.decode(&mut payload).unwrap_err(),
-            DynamixelDriverError::ChecksumError
+            DynamixelDriverError::ChecksumError(_, _)
         ));
         let res = codec.decode(&mut payload).unwrap().unwrap();
         assert_eq!(res, Status::new(4, vec![0x20]));
