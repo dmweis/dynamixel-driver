@@ -1,11 +1,11 @@
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use futures::{SinkExt, StreamExt};
-use std::io::Write;
 use std::str;
 use tokio::time::{timeout, Duration};
 use tokio_serial::{SerialPort, SerialPortBuilderExt};
 use tokio_util::codec::{Decoder, Encoder};
+use tracing::warn;
 
 use crate::instructions::{calc_checksum, DynamixelDriverError, Instruction, Result, StatusError};
 
@@ -82,9 +82,11 @@ impl Decoder for DynamixelProtocol {
         let len = src[3] as usize;
         if !src.starts_with(&[0xFF, 0xFF]) {
             if let Some(start) = src.windows(2).position(|pos| pos == [0xFF, 0xFF]) {
+                warn!("skipping {:?} bytes to seek header", start);
                 let _ = src.split_to(start);
             } else {
-                src.clear();
+                // skip 1 byte to advance reader
+                let _ = src.split_to(1);
             }
             // simply keep reading until we find header
             // if we fail we will time out instead
@@ -182,7 +184,6 @@ impl FramedDriver for FramedSerialDriver {
     }
 
     async fn clear_io_buffers(&mut self) -> Result<()> {
-        self.framed_port.get_mut().flush()?;
         self.framed_port
             .get_mut()
             .clear(tokio_serial::ClearBuffer::All)?;
