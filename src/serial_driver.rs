@@ -184,9 +184,12 @@ impl FramedDriver for FramedSerialDriver {
     }
 
     async fn clear_io_buffers(&mut self) -> Result<()> {
-        self.framed_port
-            .get_mut()
-            .clear(tokio_serial::ClearBuffer::All)?;
+        // self.framed_port
+        //     .get_mut()
+        //     .clear(tokio_serial::ClearBuffer::All)?;
+
+        self.framed_port.write_buffer_mut().clear();
+        self.framed_port.read_buffer_mut().clear();
         Ok(())
     }
 }
