@@ -7,21 +7,19 @@ pub(crate) type Result<T> = std::result::Result<T, DynamixelDriverError>;
 pub enum DynamixelDriverError {
     #[error("connection timeout")]
     Timeout,
-    #[error("status error {0}")]
+    #[error("status error {0:?}")]
     StatusError(StatusError),
     #[error("checksum error on arriving packet")]
     ChecksumError,
-    #[error("invalid header {0:X?}")]
-    HeaderError(Vec<u8>),
     #[error("header length less than 2")]
     HeaderLenTooSmall,
     #[error("reading error")]
     ReadingError,
     #[error("failed reading {0:?}")]
     IoError(#[from] std::io::Error),
-    #[error("decoding error for {0}")]
+    #[error("decoding error for {0:?}")]
     DecodingError(&'static str),
-    #[error("Id mismatch error. Expected {0} got {1}")]
+    #[error("Id mismatch error. Expected {0:?} got {1:?}")]
     IdMismatchError(u8, u8),
     #[error("failed to open serial port")]
     FailedOpeningSerialPort,
@@ -36,7 +34,6 @@ impl DynamixelDriverError {
             DynamixelDriverError::Timeout
                 | DynamixelDriverError::StatusError(_)
                 | DynamixelDriverError::ChecksumError
-                | DynamixelDriverError::HeaderError(_)
                 | DynamixelDriverError::ReadingError
                 | DynamixelDriverError::DecodingError(_)
                 | DynamixelDriverError::IdMismatchError(_, _)
