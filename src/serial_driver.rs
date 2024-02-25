@@ -73,22 +73,13 @@ impl Decoder for DynamixelProtocol {
     type Error = DynamixelDriverError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>> {
+        // Official driver decoding loop <https://github.com/ROBOTIS-GIT/DynamixelSDK/blob/720b6e6a40acb8ba79a830207732bb9ef049e175/c/src/dynamixel_sdk/protocol1_packet_handler.c#L207>
         if src.len() < 4 {
             return Ok(None);
         }
 
         let id = src[2];
         let len = src[3] as usize;
-        if len < 2 {
-            // discard 1 byte in case we are starting with FF, FF
-            let _ = src.split_to(1);
-            if let Some(start) = src.windows(2).position(|pos| pos == [0xFF, 0xFF]) {
-                let _ = src.split_to(start);
-            } else {
-                src.clear();
-            }
-            return Err(DynamixelDriverError::HeaderLenTooSmall);
-        }
         if !src.starts_with(&[0xFF, 0xFF]) {
             // discard 1 byte in case we are starting with FF, FF
             let buffer_copy = src.clone().into();
@@ -99,6 +90,17 @@ impl Decoder for DynamixelProtocol {
                 src.clear();
             }
             return Err(DynamixelDriverError::HeaderError(buffer_copy));
+        }
+        // do this check after checking header
+        if len < 2 {
+            // discard 1 byte in case we are starting with FF, FF
+            let _ = src.split_to(1);
+            if let Some(start) = src.windows(2).position(|pos| pos == [0xFF, 0xFF]) {
+                let _ = src.split_to(start);
+            } else {
+                src.clear();
+            }
+            return Err(DynamixelDriverError::HeaderLenTooSmall);
         }
         if src.len() < 4 + len {
             return Ok(None);
