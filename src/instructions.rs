@@ -11,8 +11,10 @@ pub enum DynamixelDriverError {
     StatusError(StatusError),
     #[error("checksum error on arriving packet")]
     ChecksumError,
-    #[error("invalid header")]
-    HeaderError,
+    #[error("invalid header {0:X?}")]
+    HeaderError(Vec<u8>),
+    #[error("header length less than 2")]
+    HeaderLenTooSmall,
     #[error("reading error")]
     ReadingError,
     #[error("failed reading {0:?}")]
@@ -34,7 +36,7 @@ impl DynamixelDriverError {
             DynamixelDriverError::Timeout
                 | DynamixelDriverError::StatusError(_)
                 | DynamixelDriverError::ChecksumError
-                | DynamixelDriverError::HeaderError
+                | DynamixelDriverError::HeaderError(_)
                 | DynamixelDriverError::ReadingError
                 | DynamixelDriverError::DecodingError(_)
                 | DynamixelDriverError::IdMismatchError(_, _)

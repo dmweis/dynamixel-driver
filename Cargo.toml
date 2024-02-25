@@ -2,7 +2,7 @@
 authors = ["David Weis <dweis7@gmail.com>"]
 edition = "2021"
 name = "dynamixel-driver"
-version = "0.2.4"
+version = "0.2.5"
 
 description = "Driver for Dynamixel v1 servos"
 documentation = "https://davidweis.dev/dynamixel-driver/dynamixel_driver/index.html"
