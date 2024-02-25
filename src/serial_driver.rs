@@ -3,7 +3,7 @@ use bytes::{BufMut, BytesMut};
 use futures::{SinkExt, StreamExt};
 use std::str;
 use tokio::time::{timeout, Duration};
-use tokio_serial::{SerialPort, SerialPortBuilderExt};
+use tokio_serial::SerialPortBuilderExt;
 use tokio_util::codec::{Decoder, Encoder};
 use tracing::warn;
 
@@ -184,9 +184,13 @@ impl FramedDriver for FramedSerialDriver {
     }
 
     async fn clear_io_buffers(&mut self) -> Result<()> {
-        self.framed_port
-            .get_mut()
-            .clear(tokio_serial::ClearBuffer::All)?;
+        // do not touch the internal IO buffer because you might put it in a corrupt state
+        // self.framed_port
+        //     .get_mut()
+        //     .clear(tokio_serial::ClearBuffer::All)?;
+
+        self.framed_port.write_buffer_mut().clear();
+        self.framed_port.read_buffer_mut().clear();
         Ok(())
     }
 }
