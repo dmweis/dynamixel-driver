@@ -89,8 +89,9 @@ impl Decoder for DynamixelProtocol {
             } else {
                 src.clear();
             }
+            // simply keep reading until we find header
+            // if we fail we will time out instead
             return Ok(None);
-            // return Err(DynamixelDriverError::HeaderError(buffer_copy));
         }
         // do this check after checking header
         if len < 2 {
@@ -214,7 +215,7 @@ mod tests {
             vec![0xFF, 0x12, 0x21, 0xFF, 0xFF, 0x01, 0x03, 0x00, 0x20, 0xDB].as_slice(),
         );
         let mut codec = DynamixelProtocol {};
-        assert!(codec.decode(&mut payload).is_err());
+        assert!(codec.decode(&mut payload).unwrap().is_none());
         let res = codec.decode(&mut payload).unwrap().unwrap();
         assert_eq!(res, Status::new(1, vec![0x20]));
     }
@@ -228,10 +229,7 @@ mod tests {
             .as_slice(),
         );
         let mut codec = DynamixelProtocol {};
-        assert!(std::matches!(
-            codec.decode(&mut payload).unwrap_err(),
-            DynamixelDriverError::HeaderError(_)
-        ));
+        assert!(codec.decode(&mut payload).unwrap().is_none());
         assert!(std::matches!(
             codec.decode(&mut payload).unwrap_err(),
             DynamixelDriverError::HeaderLenTooSmall
