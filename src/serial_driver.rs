@@ -82,14 +82,15 @@ impl Decoder for DynamixelProtocol {
         let len = src[3] as usize;
         if !src.starts_with(&[0xFF, 0xFF]) {
             // discard 1 byte in case we are starting with FF, FF
-            let buffer_copy = src.clone().into();
+            // let buffer_copy = src.clone().into();
             let _ = src.split_to(1);
             if let Some(start) = src.windows(2).position(|pos| pos == [0xFF, 0xFF]) {
                 let _ = src.split_to(start);
             } else {
                 src.clear();
             }
-            return Err(DynamixelDriverError::HeaderError(buffer_copy));
+            return Ok(None);
+            // return Err(DynamixelDriverError::HeaderError(buffer_copy));
         }
         // do this check after checking header
         if len < 2 {
